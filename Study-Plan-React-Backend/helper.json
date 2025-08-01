@@ -1,0 +1,606 @@
+{
+  "complete_study_plan_system_test_cases": {
+    "description": "Complete test suite for the Study Plan system with auto-managed chat history and human feedback loop",
+    "base_url": "http://127.0.0.1:8000",
+    "documentation": "See /doc/Complete_Workflow_Documentation.md for detailed workflow explanation",
+    "postman_collection": "Import /doc/Postman_Collection_Examples.json for complete API testing",
+    
+    "phase_1_initial_plan_generation": {
+      "description": "Phase 1: Initial conversation and plan generation",
+      
+      "test_case_1_greeting": {
+        "description": "User starts conversation with greeting",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "complete_test_user",
+          "user_message": "hi",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"]
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6
+        },
+        "expected_response": "Counsellor greeting and asks for preferences"
+      },
+
+      "test_case_2_preferences": {
+        "description": "User expresses subject preferences",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "complete_test_user",
+          "user_message": "I am weak at mathematics so please focus more on it",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"]
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6
+        },
+        "expected_response": "Counsellor acknowledges mathematics preference and asks for more details"
+      },
+
+      "test_case_3_generation": {
+        "description": "User triggers plan generation",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "complete_test_user",
+          "user_message": "generate",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"]
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6
+        },
+        "expected_response": "Complete study plan generated with mathematics prioritized, moves to feedback phase"
+      }
+    },
+
+    "phase_2_feedback_and_refinement": {
+      "description": "Phase 2: Human feedback loop with expert analysis",
+      
+      "test_case_4_plan_review": {
+        "description": "User reviews plan and requests changes",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "complete_test_user",
+          "user_message": "The plan looks good but I want more time for physics and less for chemistry",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"]
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6
+        },
+        "expected_response": "Feedback counsellor acknowledges request and provides expert analysis with pros/cons"
+      },
+
+      "test_case_5_chapter_reorder": {
+        "description": "User requests chapter reordering",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "complete_test_user",
+          "user_message": "Can we do physics Chapter_3 before Chapter_1?",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"]
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6
+        },
+        "expected_response": "Expert analysis of chapter dependency and reordering impact"
+      },
+
+      "test_case_6_implement_changes": {
+        "description": "User decides to implement suggested changes",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "complete_test_user",
+          "user_message": "Yes, please implement the physics time increase and reduce chemistry time by 15%",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"]
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6
+        },
+        "expected_response": "System implements changes and shows updated plan"
+      },
+
+      "test_case_7_finalize": {
+        "description": "User finalizes the study plan",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "complete_test_user",
+          "user_message": "finalize",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"]
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6
+        },
+        "expected_response": "Congratulatory finalization message with next steps and database save confirmation"
+      }
+    },
+
+    "phase_3_advanced_scenarios": {
+      "description": "Phase 3: Advanced testing scenarios and edge cases",
+      
+      "test_case_8_complex_preferences": {
+        "description": "User provides multiple complex preferences in single message",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "complex_test_user",
+          "user_message": "I want to focus on mathematics and physics, spend more time on Chapter_3 and Chapter_5 in physics, and do chemistry Chapter_2 before Chapter_1",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"]
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6,
+          "reset_chat": true
+        },
+        "expected_response": "System extracts multiple preference types: subject_priority, chapter_priority, and chapter_coverage_order"
+      },
+
+      "test_case_9_weightage_based_planning": {
+        "description": "Test weightage-based planning instead of syllabus coverage",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "weightage_test_user",
+          "user_message": "generate",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Priority Based",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5"]
+          },
+          "number_of_months": 6,
+          "hours_per_day": 4,
+          "reset_chat": true
+        },
+        "expected_response": "Plan generated using weightage-based algorithm with chapter importance prioritization"
+      },
+
+      "test_case_10_multiple_finalization_phrases": {
+        "description": "Test various finalization trigger phrases",
+        "variations": [
+          {
+            "user_message": "finalize",
+            "expected": "Standard finalization"
+          },
+          {
+            "user_message": "yes this is final",
+            "expected": "Natural language finalization"
+          },
+          {
+            "user_message": "looks good",
+            "expected": "Simple approval finalization"
+          },
+          {
+            "user_message": "save this plan",
+            "expected": "Explicit save request"
+          },
+          {
+            "user_message": "lock it in",
+            "expected": "Colloquial finalization"
+          }
+        ]
+      },
+
+      "test_case_11_edge_case_empty_syllabus": {
+        "description": "Test system behavior with empty syllabus",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "edge_case_user",
+          "user_message": "generate",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": [],
+            "physics": [],
+            "chemistry": []
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6,
+          "reset_chat": true
+        },
+        "expected_response": "Graceful error handling with appropriate user message"
+      },
+
+      "test_case_12_chat_history_persistence": {
+        "description": "Test chat history management across sessions",
+        "steps": [
+          {
+            "step": 1,
+            "action": "Start conversation",
+            "reset_chat": true
+          },
+          {
+            "step": 2,
+            "action": "Continue conversation",
+            "reset_chat": false,
+            "expected": "Previous context maintained"
+          },
+          {
+            "step": 3,
+            "action": "Check chat history endpoint",
+            "method": "GET",
+            "endpoint": "/chat-history/{user_id}"
+          }
+        ]
+      }
+    },
+
+    "phase_4_error_handling": {
+      "description": "Phase 4: Error handling and recovery scenarios",
+      
+      "test_case_13_infinite_loop_prevention": {
+        "description": "Test prevention of infinite re-edit loops",
+        "scenario": "User repeatedly says 're-edit the plan' to test circuit breaker",
+        "expected_behavior": "System should handle gracefully without hitting recursion limit"
+      },
+
+      "test_case_14_database_unavailable": {
+        "description": "Test system behavior when database is unavailable",
+        "scenario": "Simulate Supabase connection failure",
+        "expected_behavior": "System falls back to mock data and continues functioning"
+      },
+
+      "test_case_15_invalid_preferences": {
+        "description": "Test handling of invalid or conflicting preferences",
+        "examples": [
+          "I want to do Chapter_99 first (non-existent chapter)",
+          "Focus on Biology (non-existent subject)",
+          "I want 25 hours per day (invalid time)"
+        ]
+      }
+    },
+
+    "api_endpoints_reference": {
+      "description": "Complete API reference for all endpoints",
+      
+      "chat_endpoint": {
+        "method": "POST",
+        "url": "/chat",
+        "description": "Main conversational endpoint for study plan generation",
+        "required_fields": [
+          "user_id",
+          "user_message", 
+          "target_exam",
+          "study_plan_type",
+          "preparation_type",
+          "syllabus",
+          "number_of_months",
+          "hours_per_day"
+        ],
+        "optional_fields": [
+          "reset_chat"
+        ],
+        "response_fields": [
+          "user_id",
+          "assistant_message",
+          "is_plan_generated",
+          "study_plan",
+          "chat_context"
+        ]
+      },
+
+      "chat_history_endpoints": {
+        "get_history": {
+          "method": "GET",
+          "url": "/chat-history/{user_id}",
+          "query_params": ["target_exam", "study_plan_type"]
+        },
+        "clear_history": {
+          "method": "DELETE", 
+          "url": "/chat-history/{user_id}",
+          "query_params": ["target_exam", "study_plan_type"]
+        },
+        "storage_status": {
+          "method": "GET",
+          "url": "/chat-storage-status"
+        }
+      },
+
+      "legacy_endpoint": {
+        "method": "POST",
+        "url": "/generate-study-plan",
+        "description": "Legacy endpoint for direct plan generation without conversation"
+      }
+    },
+
+    "database_schema": {
+      "description": "Database schema for finalized plans",
+      "user_table": {
+        "table_name": "User_Table",
+        "fields": {
+          "user_id": "text (primary key)",
+          "state_msg": "jsonb (complete conversation state)",
+          "study_plan": "jsonb (finalized study plan)",
+          "created_at": "timestamp with time zone (auto-generated)"
+        }
+      }
+    },
+
+    "workflow_triggers": {
+      "description": "Key trigger phrases and their actions",
+      "generation_triggers": [
+        "generate",
+        "create plan", 
+        "start planning",
+        "make my plan",
+        "begin generation"
+      ],
+      "re_edit_triggers": [
+        "re edit",
+        "re-edit",
+        "reedit",
+        "edit the plan",
+        "implement changes",
+        "make the changes",
+        "apply changes",
+        "update the plan",
+        "regenerate"
+      ],
+      "finalization_triggers": [
+        "finalize",
+        "yes this is final",
+        "this is final", 
+        "final",
+        "done",
+        "complete",
+        "save this plan",
+        "lock it in",
+        "good to go",
+        "ready",
+        "confirmed",
+        "approve",
+        "confirm plan",
+        "i'm satisfied"
+      ],
+      "change_request_indicators": [
+        "more time",
+        "less time",
+        "change",
+        "adjust", 
+        "modify",
+        "different",
+        "reorder",
+        "priority",
+        "before",
+        "after",
+        "increase",
+        "decrease"
+      ]
+    },
+
+    "preference_extraction_examples": {
+      "description": "Examples of how user preferences are extracted",
+      "subject_priority_examples": [
+        {
+          "user_input": "I am weak at mathematics so please focus more on it",
+          "extracted": {"subject_priority": ["mathematics"]}
+        },
+        {
+          "user_input": "I want to focus on physics and chemistry",
+          "extracted": {"subject_priority": ["physics", "chemistry"]}
+        }
+      ],
+      "chapter_priority_examples": [
+        {
+          "user_input": "I want more time on Chapter_3 and Chapter_5 in physics",
+          "extracted": {"chapter_priority": {"physics": ["Chapter_3", "Chapter_5"]}}
+        },
+        {
+          "user_input": "Spend more time on mathematics Chapter_2",
+          "extracted": {"chapter_priority": {"mathematics": ["Chapter_2"]}}
+        }
+      ],
+      "chapter_order_examples": [
+        {
+          "user_input": "Can we do physics Chapter_3 before Chapter_1?",
+          "extracted": {"chapter_coverage_order": {"physics": ["Chapter_3", "Chapter_1"]}}
+        },
+        {
+          "user_input": "I want to start with chemistry Chapter_2 first",
+          "extracted": {"chapter_coverage_order": {"chemistry": ["Chapter_2"]}}
+        }
+      ]
+    },
+
+    "testing_guidelines": {
+      "description": "Guidelines for testing the system",
+      "sequential_testing": "Run test cases in order to simulate real user journey",
+      "user_id_management": "Use consistent user_id across conversation for proper chat history",
+      "reset_chat_usage": "Use reset_chat: true only for starting new conversations",
+      "response_validation": [
+        "Check is_plan_generated flag",
+        "Verify assistant_message content",
+        "Validate study_plan structure when generated",
+        "Confirm chat_context persistence"
+      ],
+      "error_scenarios": "Test edge cases and error conditions",
+      "performance_testing": "Monitor response times and system behavior under load"
+    }
+
+    "alternative_scenarios": {
+      "description": "Alternative test scenarios for different user behaviors",
+      
+      "satisfied_user": {
+        "description": "User is satisfied with initial plan",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "satisfied_user",
+          "user_message": "The plan looks perfect, no changes needed",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5"]
+          },
+          "number_of_months": 6,
+          "hours_per_day": 4
+        },
+        "expected_response": "Guidance to say 'finalize' to complete the process"
+      },
+
+      "multiple_changes": {
+        "description": "User requests multiple complex changes",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "complex_user",
+          "user_message": "I want more time for mathematics, physics Chapter_5 should come first, and reduce chemistry to 4 months only",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3", "Chapter_4", "Chapter_5", "Chapter_6", "Chapter_7", "Chapter_8", "Chapter_9", "Chapter_10"]
+          },
+          "number_of_months": 8,
+          "hours_per_day": 6
+        },
+        "expected_response": "Comprehensive analysis of multiple change requests with detailed pros/cons"
+      },
+
+      "fresh_start": {
+        "description": "Start completely fresh conversation",
+        "method": "POST",
+        "endpoint": "/chat",
+        "body": {
+          "user_id": "fresh_user",
+          "user_message": "Hello, I want to start a new study plan",
+          "target_exam": "JEE Mains",
+          "study_plan_type": "Custom",
+          "preparation_type": "Syllabus Coverage",
+          "syllabus": {
+            "mathematics": ["Chapter_1", "Chapter_2", "Chapter_3"],
+            "physics": ["Chapter_1", "Chapter_2", "Chapter_3"],
+            "chemistry": ["Chapter_1", "Chapter_2", "Chapter_3"]
+          },
+          "number_of_months": 4,
+          "hours_per_day": 8,
+          "reset_chat": true
+        },
+        "expected_response": "Fresh conversation start with counsellor greeting"
+      }
+    },
+
+    "management_endpoints": {
+      "description": "Endpoints for managing and debugging chat history",
+      
+      "get_chat_history": {
+        "method": "GET",
+        "endpoint": "/chat-history/complete_test_user",
+        "description": "Retrieve stored conversation history"
+      },
+      
+      "clear_chat_history": {
+        "method": "DELETE", 
+        "endpoint": "/chat-history/complete_test_user",
+        "description": "Clear stored conversation history"
+      },
+      
+      "storage_status": {
+        "method": "GET",
+        "endpoint": "/chat-storage-status",
+        "description": "View overview of all stored chat histories"
+      }
+    },
+
+    "testing_workflow": {
+      "description": "Step-by-step testing instructions",
+      "complete_flow": [
+        "1. Copy test_case_1_greeting.body → POST /chat",
+        "2. Copy test_case_2_preferences.body → POST /chat", 
+        "3. Copy test_case_3_generation.body → POST /chat",
+        "4. Copy test_case_4_plan_review.body → POST /chat",
+        "5. Copy test_case_6_implement_changes.body → POST /chat",
+        "6. Copy test_case_7_finalize.body → POST /chat"
+      ],
+      "alternative_flows": [
+        "• Use satisfied_user.body to test immediate satisfaction",
+        "• Use multiple_changes.body to test complex change requests",
+        "• Use fresh_start.body to test new conversation with reset_chat"
+      ],
+      "debugging": [
+        "• Use GET /chat-history/{user_id} to view conversation history",
+        "• Use GET /chat-storage-status to see all active conversations",
+        "• Use DELETE /chat-history/{user_id} to clear history for fresh start"
+      ]
+    },
+
+    "expected_system_behavior": {
+      "auto_chat_management": "Server automatically stores and retrieves conversation history",
+      "preference_extraction": "Generator receives complete conversation context and extracts user preferences",
+      "feedback_loop": "After plan generation, system enters feedback mode for user refinements",
+      "expert_analysis": "Feedback supervisor provides detailed pros/cons for all change requests",
+      "finalization": "Users can finalize with 'finalize' keyword to complete the process",
+      "conversation_continuity": "Complete conversation context maintained throughout entire flow"
+    },
+
+    "key_features_demonstrated": [
+      "✅ Auto-managed chat history (no manual chat_history parameter needed)",
+      "✅ Complete conversation context passed to generator",
+      "✅ Human feedback loop with expert analysis",
+      "✅ Flexible change request handling",
+      "✅ Pros/cons analysis for all modifications",
+      "✅ Plan finalization system",
+      "✅ Multiple conversation management",
+      "✅ Fresh conversation reset capability"
+    ]
+  }
+}
