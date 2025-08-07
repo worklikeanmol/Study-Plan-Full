@@ -5,6 +5,14 @@ from app.graph import graph, StudyPlanState
 from app.regen_graph import regen_graph, RegenerationState
 from app.regen_tools import check_user_exists, get_user_performance
 from app.tools import supabase
+from app.score_oriented_tools import (
+    validate_exam_date_logic,
+    calculate_target_score_progress,
+    get_weightage_optimized_chapter_sequence,
+    save_score_progress,
+)
+from app.score_oriented_models import ScoreOrientedUserData
+from app.score_calculation_engine import score_engine
 from app.utils import get_logger
 from app.models import (
     UserData,
@@ -18,6 +26,7 @@ from app.regen_models import (
     RegenerationUserData,
     RegenerationPreferences,
 )
+from app.score_endpoints import score_router
 from typing import Dict, Optional
 
 app = FastAPI()
@@ -30,6 +39,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include score-oriented endpoints
+app.include_router(score_router)
 
 logger = get_logger(__name__)
 
@@ -56,8 +68,10 @@ class ChatRequest(BaseModel):
     syllabus: Dict[str, list[str]]
     number_of_months: int
     hours_per_day: int
-    # Optional: Target score for generic study plans
+    # Optional: Target score for Score-Oriented study plans
     target_score: Optional[int] = None
+    # Optional: Exam date for Score-Oriented study plans (YYYY-MM-DD format)
+    exam_date: Optional[str] = None
     # Optional: Reset chat history (for new conversations)
     reset_chat: bool = False
 
@@ -70,6 +84,7 @@ class FormSaveRequest(BaseModel):
     number_of_months: int
     hours_per_day: int
     target_score: Optional[int] = None
+    exam_date: Optional[str] = None
 
 class FormSaveResponse(BaseModel):
     success: bool
@@ -97,7 +112,8 @@ async def save_form_data(request: FormSaveRequest):
             "syllabus": request.syllabus,
             "number_of_months": request.number_of_months,
             "hours_per_day": request.hours_per_day,
-            "target_score": request.target_score
+            "target_score": request.target_score,
+            "exam_date": request.exam_date
         }
         
         if not supabase:
@@ -199,7 +215,8 @@ async def handle_normal_chat(request: ChatRequest):
             syllabus=stored_form_data.get("syllabus", request.syllabus),
             number_of_months=stored_form_data.get("number_of_months", request.number_of_months),
             hours_per_day=stored_form_data.get("hours_per_day", request.hours_per_day),
-            target_score=stored_form_data.get("target_score", request.target_score)
+            target_score=stored_form_data.get("target_score", request.target_score),
+            exam_date=stored_form_data.get("exam_date", request.exam_date)
         )
         logger.info(f"Using stored form data for user: {request.user_id}")
     else:
@@ -212,8 +229,98 @@ async def handle_normal_chat(request: ChatRequest):
             syllabus=request.syllabus,
             number_of_months=request.number_of_months,
             hours_per_day=request.hours_per_day,
-            target_score=request.target_score
+            target_score=request.target_score,
+            exam_date=request.exam_date
         )
+    
+    # Validate Score-Oriented plans
+    if user_data.study_plan_type.lower() == "score-oriented":
+        if not user_data.target_score:
+            return ChatResponse(
+                user_id=request.user_id,
+                assistant_message="❌ Target score is required for Score-Oriented study plans. Please provide a target score between 1-300.",
+                is_plan_generated=False,
+                chat_context={}
+            )
+        if user_data.target_score < 1 or user_data.target_score > 300:
+            return ChatResponse(
+                user_id=request.user_id,
+                assistant_message="❌ Target score must be between 1 and 300 for JEE Mains.",
+                is_plan_generated=False,
+                chat_context={}
+            )
+        if not user_data.exam_date:
+            return ChatResponse(
+                user_id=request.user_id,
+                assistant_message="❌ Exam date is required for Score-Oriented study plans. Please provide your exam date.",
+                is_plan_generated=False,
+                chat_context={}
+            )
+        
+        # Validate exam date (must be at least 5 months from today)
+        try:
+            date_validation = validate_exam_date_logic(user_data.exam_date)
+            if not date_validation.get("is_valid", False):
+                return ChatResponse(
+                    user_id=request.user_id,
+                    assistant_message=f"❌ {date_validation.get('message', 'Invalid exam date')}",
+                    is_plan_generated=False,
+                    chat_context={}
+                )
+            
+            # Update number_of_months based on exam date
+            user_data.number_of_months = date_validation.get("calculated_months", user_data.number_of_months)
+            # Force preparation_type to revision for Score-Oriented plans
+            user_data.preparation_type = "revision"
+            
+            # For Score-Oriented plans, generate plan immediately using score engine
+            if "generate" in request.user_message.lower():
+                try:
+                    score_oriented_data = ScoreOrientedUserData(
+                        user_id=user_data.user_id,
+                        target_exam=user_data.target_exam,
+                        target_score=user_data.target_score,
+                        exam_date=user_data.exam_date,
+                        number_of_months=user_data.number_of_months
+                    )
+                    
+                    score_plan = score_engine.calculate_score_oriented_plan(score_oriented_data)
+                    
+                    # Convert to standard StudyPlan format for response
+                    study_plan_response = {
+                        "insights": score_plan.overall_strategy,
+                        "monthly_plan": {},
+                        "weekly_plan": {},
+                        "score_oriented_data": score_plan.model_dump()
+                    }
+                    
+                    return ChatResponse(
+                        user_id=request.user_id,
+                        assistant_message=f"🎯 **Score-Oriented Study Plan Generated!**\n\n{score_plan.overall_strategy}\n\n📊 **Monthly Score Targets:**\n" + 
+                        "\n".join([f"Month {plan.month_number} ({plan.month_name}): {plan.score_target.target_score_for_month:.1f} marks" for plan in score_plan.monthly_plans]) +
+                        "\n\n✅ Your plan is ready! Check the 'View Plan' section for detailed breakdown.",
+                        is_plan_generated=True,
+                        study_plan=study_plan_response,
+                        chat_context=chat_context
+                    )
+                    
+                except Exception as e:
+                    logger.error(f"Error generating score-oriented plan: {e}")
+                    return ChatResponse(
+                        user_id=request.user_id,
+                        assistant_message="❌ Error generating score-oriented plan. Please try again.",
+                        is_plan_generated=False,
+                        chat_context={}
+                    )
+            
+        except Exception as e:
+            logger.error(f"Error validating exam date: {e}")
+            return ChatResponse(
+                user_id=request.user_id,
+                assistant_message="❌ Error validating exam date. Please check the date format (YYYY-MM-DD).",
+                is_plan_generated=False,
+                chat_context={}
+            )
         logger.info(f"Using request form data for user: {request.user_id}")
     
     # Auto-managed chat history storage

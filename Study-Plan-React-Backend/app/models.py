@@ -34,7 +34,8 @@ class UserData(BaseModel):
     syllabus: Dict[str, List[str]]
     number_of_months: int
     hours_per_day: int
-    target_score: Optional[int] = None  # For generic study plans (e.g., 252 out of 300)
+    target_score: Optional[int] = None  # For Score-Oriented study plans (e.g., 252 out of 300)
+    exam_date: Optional[str] = None  # For Score-Oriented study plans (YYYY-MM-DD format)
 
 # Chat message model remains the same
 class ChatMessage(BaseModel):
