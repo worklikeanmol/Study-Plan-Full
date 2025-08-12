@@ -5,13 +5,15 @@ from datetime import date
 class NewScoreOrientedUserData(BaseModel):
     """User data specifically for New Score-Oriented plans"""
     user_id: str
-    target_exam: str
+    target_exam: str  # RENAMED from exam for consistency
     study_plan_type: str = "new_score_oriented"
     preparation_type: str = "revision"  # Always revision for new_score_oriented
     syllabus_coverage: str = "complete"  # Always complete syllabus coverage
     target_score: int = Field(..., ge=1, le=300)
     exam_date: str  # YYYY-MM-DD format (minimum 6 months)
+    start_date: Optional[str] = None  # NEW FIELD: YYYY-MM-DD format, defaults to today
     number_of_months: int  # Auto-calculated from exam date
+    user_message: Optional[str] = None  # NEW FIELD: For user requirements and chat
 
 class ChapterWithDependencies(BaseModel):
     """Chapter information with dependency and priority data"""
@@ -149,3 +151,14 @@ class SupervisorFeedback(BaseModel):
     required_adjustments: List[Dict[str, str]]
     final_recommendations: List[str]
     force_fit_applied: bool  # True if plan was adjusted to meet target
+
+class NewScoreOrientedChatRequest(BaseModel):
+    """Chat request for new_score_oriented plans with new fields"""
+    user_id: str
+    exam: str  # NEW FIELD
+    target_score: str  # NEW FIELD (format: "240/300")
+    exam_date: str  # NEW FIELD (YYYY-MM-DD)
+    start_date: Optional[str] = None  # NEW FIELD (YYYY-MM-DD, defaults to today)
+    user_message: str  # NEW FIELD for chat
+    chat_context: Optional[Dict[str, Any]] = None
+    reset_chat: bool = False

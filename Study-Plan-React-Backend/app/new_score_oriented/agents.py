@@ -1,9 +1,25 @@
 from typing import Dict, List, Tuple, Optional
 from app.core.tools import get_chapter_flow, get_chapter_weightage, get_topic_priority, get_syllabus
 from app.core.utils import get_logger
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+import os
 import json
 
 logger = get_logger(__name__)
+
+# Initialize LLM for agents
+llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", google_api_key=os.getenv("GOOGLE_API_KEY"))
+
+def create_agent(llm, tools: list, system_message: str):
+    """Creates an LLM-powered agent with tools like core flow"""
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_message),
+        ("human", "{input}"),
+    ])
+    if tools:
+        return prompt | llm.bind_tools(tools)
+    return prompt | llm
 
 class RevisionFlowAgent:
     """
@@ -1074,9 +1090,80 @@ class NewScoreOrientedSupervisor:
         return recommendations
 
 
-# Global instances
-new_score_oriented_validator = NewScoreOrientedValidator()
-new_score_oriented_supervisor = NewScoreOrientedSupervisor()
+# REPLACED: Convert Python classes to LLM-powered agents like core flow
 
-# Global instance
-revision_flow_agent = RevisionFlowAgent()
+# LLM-POWERED REVISION FLOW AGENT
+revision_flow_agent = create_agent(
+    llm,
+    [get_chapter_flow, get_chapter_weightage, get_topic_priority],
+    """You are a revision flow agent for new_score_oriented study plans.
+    
+    Your role is to create complete syllabus coverage plans with:
+    1. 100% chapter completion (not partial coverage)
+    2. Dependency-based chapter ordering
+    3. Priority-weighted sequencing for target score achievement
+    4. Saturday/Sunday practice schedule integration
+    
+    CHAT CONTEXT AWARENESS:
+    - Analyze user chat history for preferences
+    - Extract subject priorities from conversation
+    - Apply chapter preferences mentioned by user
+    - Consider user's learning style and constraints
+    
+    USER PREFERENCES TO LOOK FOR:
+    - "I want to focus more on [subject]"
+    - "I'm weak in [chapter/topic]"
+    - "I prefer [learning style]"
+    - "I have constraints like [constraint]"
+    
+    Always ensure 100% syllabus coverage while respecting user preferences.
+    Use the provided tools to get chapter flow, weightage, and topic data."""
+)
+
+# LLM-POWERED VALIDATOR AGENT
+new_score_oriented_validator = create_agent(
+    llm,
+    [get_chapter_flow, get_chapter_weightage],
+    """You are a validator for new_score_oriented study plans.
+    
+    Your role is to validate:
+    1. All syllabus chapters are included
+    2. Dependencies are properly ordered
+    3. Target score is achievable with the plan
+    4. User requirements from chat are fulfilled
+    
+    CHAT ANALYSIS:
+    - Review user conversation for specific requirements
+    - Validate that user preferences are implemented
+    - Check if user concerns are addressed
+    - Ensure plan aligns with user's stated goals
+    
+    Use the provided tools to verify chapter data and dependencies."""
+)
+
+# LLM-POWERED SUPERVISOR AGENT
+new_score_oriented_supervisor = create_agent(
+    llm,
+    [],
+    """You are a supervisor for new_score_oriented study plans.
+    
+    Your role is to provide final validation and recommendations:
+    1. Analyze target achievement probability
+    2. Provide pros/cons of the generated plan
+    3. Suggest optimizations based on user chat
+    4. Give final approval or request adjustments
+    
+    CHAT-BASED INSIGHTS:
+    - Consider user's expressed preferences
+    - Address any concerns mentioned in chat
+    - Provide personalized recommendations
+    - Ensure plan feels tailored to the user
+    
+    Always provide encouraging and actionable feedback."""
+)
+
+# Keep the original Python classes for backward compatibility if needed
+# But the main agents above are now LLM-powered like core flow
+original_revision_flow_agent = RevisionFlowAgent()
+original_new_score_oriented_validator = NewScoreOrientedValidator()
+original_new_score_oriented_supervisor = NewScoreOrientedSupervisor()

@@ -10,7 +10,11 @@ from app.new_score_oriented.tools import (
     save_new_score_oriented_progress,
     validate_syllabus_coverage
 )
+from app.new_score_oriented.models import NewScoreOrientedChatRequest, NewScoreOrientedUserData
+from app.new_score_oriented.graph import new_score_oriented_graph
+from app.core.models import ChatMessage, PlanParameters
 from app.core.utils import get_logger
+from datetime import datetime
 # Note: enhanced_score_oriented_json_generator was removed during cleanup
 # This import needs to be updated or the functionality moved to this module
 
@@ -222,13 +226,54 @@ async def generate_enhanced_score_oriented_plan(request: EnhancedScoreOrientedPl
     try:
         logger.info(f"Generating enhanced score-oriented plan for exam: {request.exam}")
         
-        # Generate the enhanced JSON structure
-        enhanced_plan = generate_enhanced_score_oriented_json.invoke({
-            "exam": request.exam,
-            "target_score": request.target_score,
-            "exam_date": request.exam_date,
-            "start_date": request.start_date
-        })
+        # FIXED: Use the new LLM-powered agents instead of undefined function
+        # Parse target score
+        if "/" in request.target_score:
+            target_score = int(request.target_score.split("/")[0])
+        else:
+            target_score = int(request.target_score)
+        
+        # Calculate months from exam_date
+        start_date_obj = datetime.strptime(request.start_date or datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
+        exam_date_obj = datetime.strptime(request.exam_date, "%Y-%m-%d")
+        number_of_months = max(6, (exam_date_obj - start_date_obj).days // 30)
+        
+        # Create user data
+        user_data = NewScoreOrientedUserData(
+            user_id="enhanced_plan_user",
+            target_exam=request.exam,
+            target_score=target_score,
+            exam_date=request.exam_date,
+            start_date=request.start_date,
+            number_of_months=number_of_months,
+            user_message="Generate enhanced score-oriented plan"
+        )
+        
+        # Create initial state for enhanced plan generation
+        initial_state = {
+            "user_data": user_data,
+            "chat_context": {"1": ChatMessage(user_message="generate", assistant_message="")},
+            "plan_parameters": PlanParameters(),
+            "next_agent": "requirement_extractor"
+        }
+        
+        # Generate plan using the new LLM-powered graph
+        result = new_score_oriented_graph.invoke(initial_state)
+        
+        # Extract the enhanced plan from result
+        enhanced_plan = {
+            "plan_info": {
+                "exam": request.exam,
+                "target_score": request.target_score,
+                "exam_date": request.exam_date,
+                "start_date": request.start_date,
+                "total_months": number_of_months,
+                "syllabus_completion_months": min(6, number_of_months)
+            },
+            "study_plan": result.get("study_plan"),
+            "revision_flow_results": result.get("revision_flow_results"),
+            "chat_context": result.get("chat_context")
+        }
         
         logger.info("Successfully generated enhanced score-oriented plan")
         
@@ -244,3 +289,71 @@ async def generate_enhanced_score_oriented_plan(request: EnhancedScoreOrientedPl
     except Exception as e:
         logger.error(f"Unexpected error in enhanced plan generation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+@new_score_oriented_router.post("/chat")
+async def new_score_oriented_chat(request: NewScoreOrientedChatRequest):
+    """Chat endpoint for new_score_oriented plans with user preferences and new fields"""
+    try:
+        logger.info(f"New Score-Oriented chat for user: {request.user_id}")
+        
+        # Parse target score
+        if "/" in request.target_score:
+            target_score = int(request.target_score.split("/")[0])
+        else:
+            target_score = int(request.target_score)
+        
+        # Calculate months from exam_date
+        start_date = datetime.strptime(request.start_date or datetime.now().strftime("%Y-%m-%d"), "%Y-%m-%d")
+        exam_date = datetime.strptime(request.exam_date, "%Y-%m-%d")
+        number_of_months = max(6, (exam_date - start_date).days // 30)
+        
+        # Create user data with new fields
+        user_data = NewScoreOrientedUserData(
+            user_id=request.user_id,
+            target_exam=request.exam,  # NEW FIELD
+            target_score=target_score,  # PARSED
+            exam_date=request.exam_date,  # NEW FIELD
+            start_date=request.start_date,  # NEW FIELD
+            number_of_months=number_of_months,
+            user_message=request.user_message  # NEW FIELD
+        )
+        
+        # Handle chat context
+        chat_context = request.chat_context or {}
+        
+        # Add current message to chat context
+        turn_id = str(len(chat_context) + 1)
+        chat_context[turn_id] = ChatMessage(
+            user_message=request.user_message,
+            assistant_message=""
+        )
+        
+        # Create initial state
+        initial_state = {
+            "user_data": user_data,
+            "chat_context": chat_context,
+            "plan_parameters": PlanParameters(),
+            "next_agent": "counsellor"
+        }
+        
+        # Run the graph with LLM-powered agents
+        result = new_score_oriented_graph.invoke(initial_state)
+        
+        return {
+            "user_id": request.user_id,
+            "assistant_message": result["chat_context"][turn_id].assistant_message,
+            "is_plan_generated": result.get("plan_finalized", False),
+            "chat_context": result["chat_context"],
+            "study_plan": result.get("study_plan"),
+            "status": "success"
+        }
+        
+    except Exception as e:
+        logger.error(f"Error in new_score_oriented chat: {e}")
+        return {
+            "user_id": request.user_id,
+            "assistant_message": "I apologize, but I encountered an error. Please try again.",
+            "is_plan_generated": False,
+            "chat_context": {},
+            "status": "error"
+        }
