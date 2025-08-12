@@ -409,19 +409,33 @@ def _generate_plan_metadata(state: StudyPlanState) -> Dict:
     total_available_hours = user_data.number_of_months * 30 * user_data.hours_per_day
     hours_per_subject = total_available_hours / len(user_data.syllabus) if user_data.syllabus else 0
     
+    # Calculate priority multipliers based on number of prioritized subjects
+    priority_count = len(plan_params.subject_priority)
+    if priority_count == 1:
+        priority_multiplier = 1.5
+        non_priority_multiplier = 0.75  # Reduced by 1/4
+    elif priority_count == 2:
+        priority_multiplier = 1.25
+        non_priority_multiplier = 0.875  # Reduced by 1/8
+    else:
+        priority_multiplier = 1.0
+        non_priority_multiplier = 1.0
+    
     for subject in user_data.syllabus.keys():
         base_hours = hours_per_subject
         # Apply subject priority multiplier if applicable
         if subject in plan_params.subject_priority:
-            if len(plan_params.subject_priority) == 1:
-                base_hours *= 1.5
-            elif len(plan_params.subject_priority) == 2:
-                base_hours *= 1.25
+            base_hours *= priority_multiplier
+        else:
+            # Apply reduction to non-prioritized subjects when priorities exist
+            if priority_count > 0:
+                base_hours *= non_priority_multiplier
         
         metadata["subject_overall_time"][subject] = {
             "allocated_hours": round(base_hours, 2),
             "percentage_of_total": round((base_hours / total_available_hours) * 100, 2),
-            "is_prioritized": subject in plan_params.subject_priority
+            "is_prioritized": subject in plan_params.subject_priority,
+            "multiplier_applied": priority_multiplier if subject in plan_params.subject_priority else non_priority_multiplier
         }
     
     # 3. Calculate chapter-wise time allocation
