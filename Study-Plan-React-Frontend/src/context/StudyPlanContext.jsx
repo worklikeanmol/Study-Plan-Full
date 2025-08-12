@@ -15,7 +15,8 @@ const initialState = {
     },
     number_of_months: 3,
     hours_per_day: 6,
-    target_score: null
+    target_score: null,
+    exam_date: null
   },
   chatHistory: [],
   studyPlan: null,

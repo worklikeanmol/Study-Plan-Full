@@ -3,7 +3,7 @@ import { useForm } from 'react-hook-form'
 import { toast } from 'react-hot-toast'
 import { GraduationCap, Target, Clock, BookOpen, Plus, X } from 'lucide-react'
 import { useStudyPlan } from '../context/StudyPlanContext'
-import { saveFormData, getChaptersByExam } from '../services/api'
+import { saveFormData, getChaptersByExam, validateExamDate } from '../services/api'
 
 const defaultSyllabus = {
   mathematics: ['Algebra', 'Calculus', 'Coordinate Geometry', 'Trigonometry', 'Statistics', 'Probability', 'Vectors', 'Complex Numbers', 'Matrices', 'Sequences and Series'],
@@ -26,6 +26,7 @@ export default function StudyPlanForm({ onComplete }) {
   const targetScore = watch('target_score')
   const numberOfMonths = watch('number_of_months')
   const targetExam = watch('target_exam')
+  const examDate = watch('exam_date')
 
   // Generate random user ID on component mount
   useEffect(() => {
@@ -94,21 +95,43 @@ export default function StudyPlanForm({ onComplete }) {
 
   // Handle study plan type change
   useEffect(() => {
-    if (studyPlanType === 'Generic') {
-      // Target score is required for Generic plans
+    if (studyPlanType === 'Score-Oriented') {
+      // Target score and exam date are required for Score-Oriented plans
+      // Force preparation type to revision
+      setValue('preparation_type', 'revision')
       setCustomValidationErrors(prev => ({
         ...prev,
-        target_score: targetScore ? null : 'Target score is required for Generic plans'
+        target_score: null, // Clear any previous errors - let form validation handle it
+        exam_date: null // Clear any previous errors - let form validation handle it
+      }))
+    } else if (studyPlanType === 'new_score_oriented') {
+      // Target score and exam date are required for New Score-Oriented plans
+      // Force preparation type to revision & syllabus coverage
+      setValue('preparation_type', 'revision & syllabus coverage')
+      setCustomValidationErrors(prev => ({
+        ...prev,
+        target_score: null, // Clear any previous errors - let form validation handle it
+        exam_date: null // Clear any previous errors - let form validation handle it
+      }))
+    } else if (studyPlanType === 'Generic') {
+      // Target score is required for Generic plans
+      setValue('exam_date', null)
+      setCustomValidationErrors(prev => ({
+        ...prev,
+        target_score: targetScore ? null : 'Target score is required for Generic plans',
+        exam_date: null
       }))
     } else {
-      // Clear target score for Custom plans
+      // Clear target score and exam date for Custom plans
       setValue('target_score', null)
+      setValue('exam_date', null)
       setCustomValidationErrors(prev => ({
         ...prev,
-        target_score: null
+        target_score: null,
+        exam_date: null
       }))
     }
-  }, [studyPlanType, targetScore, setValue])
+  }, [studyPlanType, targetScore, examDate, setValue])
 
   // Handle preparation type change
   useEffect(() => {
@@ -137,10 +160,10 @@ export default function StudyPlanForm({ onComplete }) {
         ...prev,
         target_score: 'Target score must be between 1 and 300'
       }))
-    } else if (studyPlanType === 'Generic' && !targetScore) {
+    } else if ((studyPlanType === 'Generic' || studyPlanType === 'Score-Oriented') && !targetScore) {
       setCustomValidationErrors(prev => ({
         ...prev,
-        target_score: 'Target score is required for Generic plans'
+        target_score: `Target score is required for ${studyPlanType} plans`
       }))
     } else {
       setCustomValidationErrors(prev => ({
@@ -149,6 +172,99 @@ export default function StudyPlanForm({ onComplete }) {
       }))
     }
   }, [targetScore, studyPlanType])
+
+  // Validate exam date for Score-Oriented and New Score-Oriented plans
+  useEffect(() => {
+    const validateDate = async () => {
+      if ((studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') && examDate) {
+        try {
+          // First do client-side validation
+          const examDateTime = new Date(examDate)
+          const today = new Date()
+          const timeDiff = examDateTime - today
+          const monthsAvailable = timeDiff / (1000 * 60 * 60 * 24 * 30.44)
+          
+          const minMonths = studyPlanType === 'new_score_oriented' ? 6 : 5
+          const planTypeName = studyPlanType === 'new_score_oriented' ? 'New Score-Oriented' : 'Score-Oriented'
+          
+          if (monthsAvailable < minMonths) {
+            setCustomValidationErrors(prev => ({
+              ...prev,
+              exam_date: `Exam date is only ${monthsAvailable.toFixed(1)} months away. Minimum ${minMonths} months required for ${planTypeName} plans.`
+            }))
+            return
+          }
+          
+          // If client-side validation passes, call API
+          const validation = await validateExamDate(examDate)
+          if (!validation.is_valid) {
+            setCustomValidationErrors(prev => ({
+              ...prev,
+              exam_date: validation.message
+            }))
+          } else {
+            setCustomValidationErrors(prev => ({
+              ...prev,
+              exam_date: null
+            }))
+            // Update number of months based on exam date
+            setValue('number_of_months', validation.calculated_months)
+            toast.success(`Exam date validated! ${validation.months_available} months available for preparation.`)
+          }
+        } catch (error) {
+          console.error('Exam date validation error:', error)
+          // Fallback to client-side validation if API fails
+          try {
+            const examDateTime = new Date(examDate)
+            const today = new Date()
+            const timeDiff = examDateTime - today
+            const monthsAvailable = timeDiff / (1000 * 60 * 60 * 24 * 30.44)
+            
+            const minMonths = studyPlanType === 'new_score_oriented' ? 6 : 5
+            const planTypeName = studyPlanType === 'new_score_oriented' ? 'New Score-Oriented' : 'Score-Oriented'
+            
+            if (monthsAvailable < minMonths) {
+              setCustomValidationErrors(prev => ({
+                ...prev,
+                exam_date: `Exam date is only ${monthsAvailable.toFixed(1)} months away. Minimum ${minMonths} months required for ${planTypeName} plans.`
+              }))
+            } else {
+              setCustomValidationErrors(prev => ({
+                ...prev,
+                exam_date: null
+              }))
+              const calculatedMonths = Math.min(Math.floor(monthsAvailable), 12)
+              setValue('number_of_months', calculatedMonths)
+              toast.success(`Exam date validated! ${monthsAvailable.toFixed(1)} months available for preparation.`)
+            }
+          } catch (dateError) {
+            setCustomValidationErrors(prev => ({
+              ...prev,
+              exam_date: 'Invalid date format. Please use YYYY-MM-DD format.'
+            }))
+          }
+        }
+      } else if ((studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') && !examDate) {
+        const planTypeName = studyPlanType === 'new_score_oriented' ? 'New Score-Oriented' : 'Score-Oriented'
+        setCustomValidationErrors(prev => ({
+          ...prev,
+          exam_date: `Exam date is required for ${planTypeName} plans`
+        }))
+      } else {
+        setCustomValidationErrors(prev => ({
+          ...prev,
+          exam_date: null
+        }))
+      }
+    }
+
+    if (studyPlanType === 'Score-Oriented' && examDate) {
+      const timeoutId = setTimeout(validateDate, 500) // Debounce validation
+      return () => clearTimeout(timeoutId)
+    } else {
+      validateDate()
+    }
+  }, [examDate, studyPlanType, setValue])
 
   const addChapter = (subject) => {
     setSyllabus(prev => ({
@@ -198,6 +314,11 @@ export default function StudyPlanForm({ onComplete }) {
   }
 
   const validateSyllabus = () => {
+    // Skip syllabus validation for Score-Oriented plans
+    if (studyPlanType === 'Score-Oriented') {
+      return null
+    }
+    
     const subjects = ['mathematics', 'physics', 'chemistry']
     for (const subject of subjects) {
       const validChapters = syllabus[subject].filter(chapter => chapter.trim() !== '')
@@ -223,16 +344,29 @@ export default function StudyPlanForm({ onComplete }) {
       return
     }
 
-    // Clean syllabus data (remove empty chapters)
-    const cleanSyllabus = {}
-    Object.keys(syllabus).forEach(subject => {
-      cleanSyllabus[subject] = syllabus[subject].filter(chapter => chapter.trim() !== '')
-    })
+    // Clean syllabus data (remove empty chapters) - Skip for Score-Oriented
+    let cleanSyllabus = {}
+    if (studyPlanType === 'Score-Oriented') {
+      // For Score-Oriented plans, syllabus is auto-selected by the system
+      cleanSyllabus = {
+        mathematics: ['Auto-Selected'],
+        physics: ['Auto-Selected'],
+        chemistry: ['Auto-Selected']
+      }
+    } else {
+      Object.keys(syllabus).forEach(subject => {
+        cleanSyllabus[subject] = syllabus[subject].filter(chapter => chapter.trim() !== '')
+      })
+    }
 
     const formData = {
       ...data,
       syllabus: cleanSyllabus,
-      target_score: studyPlanType === 'Generic' ? parseInt(data.target_score) : null
+      target_score: (studyPlanType === 'Generic' || studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') ? parseInt(data.target_score) : null,
+      exam_date: (studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') ? data.exam_date : null,
+      // Set default values for Score-Oriented and New Score-Oriented plans
+      number_of_months: (studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') ? numberOfMonths : data.number_of_months,
+      hours_per_day: (studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') ? 8 : data.hours_per_day // Default 8 hours for score-oriented plans
     }
 
     try {
@@ -323,11 +457,23 @@ export default function StudyPlanForm({ onComplete }) {
               >
                 <option value="Custom">Custom</option>
                 <option value="Generic">Generic</option>
+                <option value="Score-Oriented">Score-Oriented</option>
+                <option value="new_score_oriented">New Score-Oriented</option>
               </select>
               {errors.study_plan_type && <p className="error-text">{errors.study_plan_type.message}</p>}
               {studyPlanType === 'Generic' && (
                 <p className="text-blue-600 text-sm mt-1">
                   Generic plans require a target score for optimization
+                </p>
+              )}
+              {studyPlanType === 'Score-Oriented' && (
+                <p className="text-green-600 text-sm mt-1">
+                  🎯 Score-Oriented plans optimize for your target score with exam date tracking
+                </p>
+              )}
+              {studyPlanType === 'new_score_oriented' && (
+                <p className="text-purple-600 text-sm mt-1">
+                  🆕 New Score-Oriented plans provide 100% syllabus coverage with dependency management and target achievement focus
                 </p>
               )}
             </div>
@@ -340,9 +486,11 @@ export default function StudyPlanForm({ onComplete }) {
               <select
                 {...register('preparation_type', { required: 'Preparation type is required' })}
                 className={`form-input ${errors.preparation_type ? 'form-input-error' : ''}`}
+                disabled={studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented'}
               >
                 <option value="Syllabus Coverage">Syllabus Coverage</option>
-                <option value="Revision">Revision</option>
+                <option value="revision">Revision</option>
+                <option value="revision & syllabus coverage">Revision & Syllabus Coverage</option>
               </select>
               {errors.preparation_type && <p className="error-text">{errors.preparation_type.message}</p>}
               {preparationType === 'Syllabus Coverage' && (
@@ -353,86 +501,179 @@ export default function StudyPlanForm({ onComplete }) {
             </div>
           </div>
 
-          {/* Target Score (conditional) */}
-          {studyPlanType === 'Generic' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Target className="inline h-4 w-4 mr-1" />
-                Target Score (out of 300)
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="300"
-                {...register('target_score', {
-                  required: studyPlanType === 'Generic' ? 'Target score is required for Generic plans' : false,
-                  min: { value: 1, message: 'Target score must be at least 1' },
-                  max: { value: 300, message: 'Target score cannot exceed 300' }
-                })}
-                className={`form-input ${errors.target_score || customValidationErrors.target_score ? 'form-input-error' : ''}`}
-                placeholder="e.g., 252"
-              />
-              {(errors.target_score || customValidationErrors.target_score) && (
-                <p className="error-text">
-                  {errors.target_score?.message || customValidationErrors.target_score}
+          {/* Target Score and Exam Date (conditional) */}
+          {(studyPlanType === 'Generic' || studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Target className="inline h-4 w-4 mr-1" />
+                  Target Score (out of 300)
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="300"
+                  {...register('target_score', {
+                    required: (studyPlanType === 'Generic' || studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') ? `Target score is required for ${studyPlanType === 'new_score_oriented' ? 'New Score-Oriented' : studyPlanType} plans` : false,
+                    min: { value: 1, message: 'Target score must be at least 1' },
+                    max: { value: 300, message: 'Target score cannot exceed 300' }
+                  })}
+                  className={`form-input ${errors.target_score || customValidationErrors.target_score ? 'form-input-error' : ''}`}
+                  placeholder="e.g., 252"
+                />
+                {(errors.target_score || customValidationErrors.target_score) && (
+                  <p className="error-text">
+                    {errors.target_score?.message || customValidationErrors.target_score}
+                  </p>
+                )}
+              </div>
+
+              {(studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    📅 Exam Date
+                  </label>
+                  <input
+                    type="date"
+                    {...register('exam_date', {
+                      required: (studyPlanType === 'Score-Oriented' || studyPlanType === 'new_score_oriented') ? `Exam date is required for ${studyPlanType === 'new_score_oriented' ? 'New Score-Oriented' : studyPlanType} plans` : false
+                    })}
+                    className={`form-input ${errors.exam_date || customValidationErrors.exam_date ? 'form-input-error' : ''}`}
+                    min={new Date().toISOString().split('T')[0]} // Minimum today's date
+                  />
+                  {(errors.exam_date || customValidationErrors.exam_date) && (
+                    <p className="error-text">
+                      {errors.exam_date?.message || customValidationErrors.exam_date}
+                    </p>
+                  )}
+                  <p className="text-sm text-gray-500 mt-1">
+                    ⚠️ Minimum {studyPlanType === 'new_score_oriented' ? '6' : '5'} months required from today for {studyPlanType === 'new_score_oriented' ? 'New Score-Oriented' : 'Score-Oriented'} plans
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Time Configuration - Hidden for Score-Oriented and New Score-Oriented */}
+          {studyPlanType !== 'Score-Oriented' && studyPlanType !== 'new_score_oriented' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <Clock className="inline h-4 w-4 mr-1" />
+                  Number of Months
+                </label>
+                <input
+                  type="number"
+                  min={preparationType === 'Syllabus Coverage' ? 3 : 1}
+                  {...register('number_of_months', {
+                    required: studyPlanType !== 'Score-Oriented' ? 'Number of months is required' : false,
+                    min: {
+                      value: preparationType === 'Syllabus Coverage' ? 3 : 1,
+                      message: preparationType === 'Syllabus Coverage' 
+                        ? 'Minimum 3 months required for Syllabus Coverage'
+                        : 'At least 1 month is required'
+                    }
+                  })}
+                  className={`form-input ${errors.number_of_months || customValidationErrors.number_of_months ? 'form-input-error' : ''}`}
+                  placeholder="e.g., 6"
+                />
+                {(errors.number_of_months || customValidationErrors.number_of_months) && (
+                  <p className="error-text">
+                    {errors.number_of_months?.message || customValidationErrors.number_of_months}
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Hours per Day
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  {...register('hours_per_day', {
+                    required: studyPlanType !== 'Score-Oriented' && studyPlanType !== 'new_score_oriented' ? 'Hours per day is required' : false,
+                    min: { value: 1, message: 'At least 1 hour per day is required' },
+                    max: { value: 24, message: 'Cannot exceed 24 hours per day' }
+                  })}
+                  className={`form-input ${errors.hours_per_day ? 'form-input-error' : ''}`}
+                  placeholder="e.g., 6"
+                />
+                {errors.hours_per_day && <p className="error-text">{errors.hours_per_day.message}</p>}
+              </div>
+            </div>
+          )}
+
+          {/* New Score-Oriented Info Display */}
+          {studyPlanType === 'new_score_oriented' && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-purple-800 mb-2">🆕 New Score-Oriented Configuration</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-purple-700">
+                <div>
+                  <strong>📚 Complete Coverage:</strong>
+                  <ul className="mt-1 ml-4 list-disc">
+                    <li>100% syllabus coverage</li>
+                    <li>All chapters completed fully</li>
+                    <li>Dependency-aware sequencing</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong>🎯 Target Strategy:</strong>
+                  <ul className="mt-1 ml-4 list-disc">
+                    <li>6-month syllabus completion</li>
+                    <li>Saturday: PYQ Practice</li>
+                    <li>Sunday: DPP Practice</li>
+                    <li>Force-fit for target achievement</li>
+                  </ul>
+                </div>
+              </div>
+              {examDate && (
+                <p className="mt-2 text-sm text-purple-600">
+                  ⏱️ Months calculated automatically from exam date: <strong>{numberOfMonths} months</strong>
+                  <br />
+                  📅 Syllabus completion target: <strong>{Math.min(numberOfMonths, 6)} months</strong>
+                  {numberOfMonths > 6 && <span> + {numberOfMonths - 6} months intensive practice</span>}
                 </p>
               )}
             </div>
           )}
 
-          {/* Time Configuration */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                <Clock className="inline h-4 w-4 mr-1" />
-                Number of Months
-              </label>
-              <input
-                type="number"
-                min={preparationType === 'Syllabus Coverage' ? 3 : 1}
-                {...register('number_of_months', {
-                  required: 'Number of months is required',
-                  min: {
-                    value: preparationType === 'Syllabus Coverage' ? 3 : 1,
-                    message: preparationType === 'Syllabus Coverage' 
-                      ? 'Minimum 3 months required for Syllabus Coverage'
-                      : 'At least 1 month is required'
-                  }
-                })}
-                className={`form-input ${errors.number_of_months || customValidationErrors.number_of_months ? 'form-input-error' : ''}`}
-                placeholder="e.g., 6"
-              />
-              {(errors.number_of_months || customValidationErrors.number_of_months) && (
-                <p className="error-text">
-                  {errors.number_of_months?.message || customValidationErrors.number_of_months}
+          {/* Score-Oriented Info Display */}
+          {studyPlanType === 'Score-Oriented' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-green-800 mb-2">🎯 Score-Oriented Configuration</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-green-700">
+                <div>
+                  <strong>📅 Study Schedule:</strong>
+                  <ul className="mt-1 ml-4 list-disc">
+                    <li>Monday-Friday: Chapter Study</li>
+                    <li>Saturday: PYQ Practice</li>
+                    <li>Sunday: DPP Practice</li>
+                  </ul>
+                </div>
+                <div>
+                  <strong>🎯 Optimization:</strong>
+                  <ul className="mt-1 ml-4 list-disc">
+                    <li>High-weightage chapters prioritized</li>
+                    <li>Monthly score targets</li>
+                    <li>Dependency-aware sequencing</li>
+                  </ul>
+                </div>
+              </div>
+              {examDate && (
+                <p className="mt-2 text-sm text-green-600">
+                  ⏱️ Months calculated automatically from exam date: <strong>{numberOfMonths} months</strong>
                 </p>
               )}
             </div>
+          )}
 
+          {/* Syllabus Section - Hidden for Score-Oriented and New Score-Oriented */}
+          {studyPlanType !== 'Score-Oriented' && studyPlanType !== 'new_score_oriented' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Hours per Day
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="24"
-                {...register('hours_per_day', {
-                  required: 'Hours per day is required',
-                  min: { value: 1, message: 'At least 1 hour per day is required' },
-                  max: { value: 24, message: 'Cannot exceed 24 hours per day' }
-                })}
-                className={`form-input ${errors.hours_per_day ? 'form-input-error' : ''}`}
-                placeholder="e.g., 6"
-              />
-              {errors.hours_per_day && <p className="error-text">{errors.hours_per_day.message}</p>}
-            </div>
-          </div>
-
-          {/* Syllabus Section */}
-          <div>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-medium text-gray-900">Syllabus Configuration</h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Syllabus Configuration</h3>
               <button
                 type="button"
                 onClick={loadDefaultSyllabus}
@@ -487,6 +728,42 @@ export default function StudyPlanForm({ onComplete }) {
               ))}
             </div>
           </div>
+          )}
+
+          {/* Score-Oriented Syllabus Info */}
+          {studyPlanType === 'Score-Oriented' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-blue-800 mb-2">📚 Automatic Syllabus Selection</h3>
+              <p className="text-blue-700 text-sm">
+                For Score-Oriented plans, the system automatically selects the most optimal chapters based on:
+              </p>
+              <ul className="mt-2 ml-4 list-disc text-sm text-blue-600">
+                <li><strong>Chapter Weightage:</strong> High-scoring chapters prioritized</li>
+                <li><strong>Dependencies:</strong> Prerequisite chapters included automatically</li>
+                <li><strong>Target Score:</strong> Optimal selection to achieve your {targetScore || 'target'} marks</li>
+                <li><strong>Time Constraints:</strong> Chapters that fit within your exam timeline</li>
+              </ul>
+            </div>
+          )}
+
+          {/* New Score-Oriented Syllabus Info */}
+          {studyPlanType === 'new_score_oriented' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h3 className="text-lg font-semibold text-green-800 mb-2">🎯 Complete Syllabus Coverage</h3>
+              <p className="text-green-700 text-sm">
+                For New Score-Oriented plans, the system provides complete syllabus coverage with:
+              </p>
+              <ul className="mt-2 ml-4 list-disc text-sm text-green-600">
+                <li><strong>100% Syllabus Coverage:</strong> All chapters completed in one go</li>
+                <li><strong>Dependency Resolution:</strong> Prerequisites completed before dependent chapters</li>
+                <li><strong>Priority-Based Sequencing:</strong> High-weightage chapters prioritized</li>
+                <li><strong>Revision Focus:</strong> Always revision & syllabus coverage type</li>
+                <li><strong>Practice Schedule:</strong> Saturday (PYQ) + Sunday (DPP) practice</li>
+                <li><strong>Target Achievement:</strong> Force-fit strategy to achieve your {targetScore || 'target'} marks</li>
+                <li><strong>6-Month Completion:</strong> Syllabus completed within 6 months maximum</li>
+              </ul>
+            </div>
+          )}
 
           {/* Submit Button */}
           <div className="flex justify-end">

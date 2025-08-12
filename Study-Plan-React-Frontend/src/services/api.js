@@ -8,7 +8,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 seconds timeout
+  timeout: 150000, // 30 seconds timeout
   withCredentials: false, // Disable credentials for CORS
 })
 
@@ -67,6 +67,17 @@ export const sendChatMessage = async (requestData) => {
     return response.data
   } catch (error) {
     console.error('Error in sendChatMessage:', error)
+    throw error
+  }
+}
+
+// Validate exam date for Score-Oriented plans
+export const validateExamDate = async (examDate) => {
+  try {
+    const response = await api.post('/score/validate-exam-date', { exam_date: examDate })
+    return response.data
+  } catch (error) {
+    console.error('Error in validateExamDate:', error)
     throw error
   }
 }
@@ -158,6 +169,178 @@ export const generateStudyPlan = async (requestData) => {
     return response.data
   } catch (error) {
     console.error('Error in generateStudyPlan:', error)
+    throw error
+  }
+}
+
+// Enhanced Calendar API Functions
+
+// Generate calendar-based study plan
+export const generateCalendarStudyPlan = async (planData) => {
+  try {
+    const response = await api.post('/enhanced_calendar/generate-calendar-plan', planData)
+    return response.data
+  } catch (error) {
+    console.error('Error in generateCalendarStudyPlan:', error)
+    throw error
+  }
+}
+
+// Get monthly analysis with total_achievable_score and user_target
+export const getMonthlyAnalysis = async (analysisData) => {
+  try {
+    const response = await api.post('/enhanced_calendar/monthly-analysis', analysisData)
+    return response.data
+  } catch (error) {
+    console.error('Error in getMonthlyAnalysis:', error)
+    throw error
+  }
+}
+
+// Calculate monthly target scores
+export const calculateMonthlyTargets = async (targetData) => {
+  try {
+    const response = await api.post('/enhanced_calendar/calculate-monthly-targets', targetData)
+    return response.data
+  } catch (error) {
+    console.error('Error in calculateMonthlyTargets:', error)
+    throw error
+  }
+}
+
+// Generate extended months plan (beyond 6 months)
+export const generateExtendedPlan = async (extendedData) => {
+  try {
+    const response = await api.post('/enhanced_calendar/extended-months-plan', extendedData)
+    return response.data
+  } catch (error) {
+    console.error('Error in generateExtendedPlan:', error)
+    throw error
+  }
+}
+
+// Create weekend schedule with PYQ focus
+export const createWeekendSchedule = async (scheduleData) => {
+  try {
+    const response = await api.post('/enhanced_calendar/weekend-schedule', scheduleData)
+    return response.data
+  } catch (error) {
+    console.error('Error in createWeekendSchedule:', error)
+    throw error
+  }
+}
+
+// Generate weekly topic breakdown
+export const generateWeeklyTopics = async (topicData) => {
+  try {
+    const response = await api.post('/enhanced_calendar/weekly-topic-breakdown', topicData)
+    return response.data
+  } catch (error) {
+    console.error('Error in generateWeeklyTopics:', error)
+    throw error
+  }
+}
+
+// Get current date for calendar planning
+export const getCurrentDate = async () => {
+  try {
+    const response = await api.get('/enhanced_calendar/current-date')
+    return response.data
+  } catch (error) {
+    console.error('Error in getCurrentDate:', error)
+    throw error
+  }
+}
+
+// Validate study plan dates
+export const validateStudyDates = async (startDate, totalMonths) => {
+  try {
+    const response = await api.post('/enhanced_calendar/validate-dates', {
+      start_date: startDate,
+      total_months: totalMonths
+    })
+    return response.data
+  } catch (error) {
+    console.error('Error in validateStudyDates:', error)
+    throw error
+  }
+}
+
+// Get sample monthly chapters for testing
+export const getSampleMonthlyChapters = async (exam, totalMonths = 6) => {
+  try {
+    const response = await api.get(`/enhanced_calendar/sample-monthly-chapters/${encodeURIComponent(exam)}?total_months=${totalMonths}`)
+    return response.data
+  } catch (error) {
+    console.error('Error in getSampleMonthlyChapters:', error)
+    throw error
+  }
+}
+
+// New Score-Oriented API Functions
+
+// Validate exam date for new score-oriented plans (minimum 6 months)
+export const validateNewScoreOrientedExamDate = async (examDate) => {
+  try {
+    const response = await api.post('/new_score_oriented/validate-exam-date', { exam_date: examDate })
+    return response.data
+  } catch (error) {
+    console.error('Error in validateNewScoreOrientedExamDate:', error)
+    throw error
+  }
+}
+
+// Generate enhanced score-oriented study plan
+export const generateEnhancedScoreOrientedPlan = async (planData) => {
+  try {
+    const response = await api.post('/new_score_oriented/generate_enhanced_plan', planData)
+    return response.data
+  } catch (error) {
+    console.error('Error in generateEnhancedScoreOrientedPlan:', error)
+    throw error
+  }
+}
+
+// Get complete syllabus for new score-oriented validation
+export const getNewScoreOrientedSyllabus = async (exam) => {
+  try {
+    const response = await api.get(`/new_score_oriented/syllabus/${encodeURIComponent(exam)}`)
+    return response.data
+  } catch (error) {
+    console.error('Error in getNewScoreOrientedSyllabus:', error)
+    throw error
+  }
+}
+
+// Calculate progress for new score-oriented plan
+export const calculateNewScoreOrientedProgress = async (progressData) => {
+  try {
+    const response = await api.post('/new_score_oriented/calculate-progress', progressData)
+    return response.data
+  } catch (error) {
+    console.error('Error in calculateNewScoreOrientedProgress:', error)
+    throw error
+  }
+}
+
+// Get revision flow for new score-oriented plans
+export const getNewScoreOrientedRevisionFlow = async (revisionData) => {
+  try {
+    const response = await api.post('/new_score_oriented/revision-flow', revisionData)
+    return response.data
+  } catch (error) {
+    console.error('Error in getNewScoreOrientedRevisionFlow:', error)
+    throw error
+  }
+}
+
+// Validate syllabus coverage for new score-oriented plans
+export const validateNewScoreOrientedSyllabus = async (syllabusData) => {
+  try {
+    const response = await api.post('/new_score_oriented/validate-syllabus', syllabusData)
+    return response.data
+  } catch (error) {
+    console.error('Error in validateNewScoreOrientedSyllabus:', error)
     throw error
   }
 }

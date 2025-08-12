@@ -1,6 +1,7 @@
 import React from 'react'
 import { Calendar, BookOpen, Clock, Target, Lightbulb } from 'lucide-react'
 import { useStudyPlan } from '../context/StudyPlanContext'
+import ScoreOrientedPlanView from './ScoreOrientedPlanView'
 
 export default function StudyPlanView() {
   const { state } = useStudyPlan()
@@ -19,6 +20,11 @@ export default function StudyPlanView() {
         </div>
       </div>
     )
+  }
+
+  // Check if this is a Score-Oriented plan or New Score-Oriented plan with enhanced features
+  if (state.studyPlan.score_oriented_data || state.studyPlan.calendar_plan || state.studyPlan.monthly_targets_data) {
+    return <ScoreOrientedPlanView studyPlan={state.studyPlan} />
   }
 
   const getCoverageClass = (coverage) => {

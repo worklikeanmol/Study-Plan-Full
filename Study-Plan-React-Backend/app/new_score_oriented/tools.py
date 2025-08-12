@@ -395,7 +395,8 @@ def enhanced_dependency_resolution_tool(exam: str, subject: str) -> Dict:
         Dict with strictly dependency-ordered chapters and comprehensive analysis
     """
     try:
-        from app.enhanced_dependency_resolver import enhanced_dependency_resolution
+        # Note: enhanced_dependency_resolver was removed during cleanup
+        # This functionality should be implemented directly in this module
         
         # Get flow and weightage data from database tables
         flow_data = get_chapter_flow_with_dependencies.invoke({
@@ -413,7 +414,7 @@ def enhanced_dependency_resolution_tool(exam: str, subject: str) -> Dict:
         logger.info(f"Weightage data: {len(weightage_data)} chapters with priorities")
         
         # Apply enhanced dependency resolution
-        result = enhanced_dependency_resolution(exam, subject, flow_data, weightage_data)
+        result = _enhanced_dependency_resolution(exam, subject, flow_data, weightage_data)
         
         # Log the resolution results
         if result.get("status") == "success":
@@ -428,11 +429,12 @@ def enhanced_dependency_resolution_tool(exam: str, subject: str) -> Dict:
             # Log the final order with dependency information
             logger.info("Final chapter order (dependencies first):")
             for i, ch in enumerate(resolved_order):
-                if ch.get("dependencies"):
-                    deps_str = ", ".join(ch["dependencies"])
-                    logger.info(f"  {i+1:2d}. {ch['chapter']} (depends on: {deps_str}) - Priority: {ch.get('priority_score', 0):.1f}")
+                chapter_info = result.get("chapter_analysis", {}).get(ch, {})
+                if chapter_info.get("dependencies"):
+                    deps_str = ", ".join(chapter_info["dependencies"])
+                    logger.info(f"  {i+1:2d}. {ch} (depends on: {deps_str}) - Priority: {chapter_info.get('priority_score', 0):.1f}")
                 else:
-                    logger.info(f"  {i+1:2d}. {ch['chapter']} (no dependencies) - Priority: {ch.get('priority_score', 0):.1f}")
+                    logger.info(f"  {i+1:2d}. {ch} (no dependencies) - Priority: {chapter_info.get('priority_score', 0):.1f}")
             
             # Log critical path
             critical_path = dependency_report.get("critical_path", [])
@@ -600,4 +602,74 @@ def validate_syllabus_coverage(exam: str, planned_chapters: Dict[str, List[str]]
             "complete_coverage": False,
             "coverage_percentage": 0.0,
             "error": str(e)
+        }
+
+def _enhanced_dependency_resolution(exam: str, subject: str, flow_data: List[Dict], weightage_data: List[Dict]) -> Dict:
+    """
+    Enhanced dependency resolution algorithm that considers both dependencies and weightage
+    """
+    try:
+        # Create chapter mapping
+        chapter_map = {}
+        for chapter_info in flow_data:
+            chapter_name = chapter_info.get("chapter", "")
+            dependencies = chapter_info.get("dependencies", "")
+            chapter_map[chapter_name] = {
+                "dependencies": [dep.strip() for dep in dependencies.split(",") if dep.strip()] if dependencies else [],
+                "weightage": 0.0,
+                "priority_score": 0.0
+            }
+        
+        # Add weightage information
+        for weight_info in weightage_data:
+            chapter_name = weight_info.get("chapter", "")
+            if chapter_name in chapter_map:
+                chapter_map[chapter_name]["weightage"] = float(weight_info.get("average_weightage", 0))
+                chapter_map[chapter_name]["priority_score"] = float(weight_info.get("average_weightage", 0))
+        
+        # Topological sort with priority consideration
+        resolved_order = []
+        remaining_chapters = set(chapter_map.keys())
+        dependency_report = {
+            "chapters_with_dependencies": sum(1 for ch in chapter_map.values() if ch["dependencies"]),
+            "dependency_satisfaction": {"all_satisfied": True, "unsatisfied": []},
+            "resolution_method": "topological_sort_with_priority"
+        }
+        
+        # Process chapters in dependency order
+        while remaining_chapters:
+            # Find chapters with no unresolved dependencies
+            ready_chapters = []
+            for chapter in remaining_chapters:
+                deps = chapter_map[chapter]["dependencies"]
+                if all(dep in resolved_order or dep not in chapter_map for dep in deps):
+                    ready_chapters.append(chapter)
+            
+            if not ready_chapters:
+                # Handle circular dependencies by picking highest priority
+                ready_chapters = [max(remaining_chapters, key=lambda ch: chapter_map[ch]["priority_score"])]
+                dependency_report["dependency_satisfaction"]["all_satisfied"] = False
+                dependency_report["dependency_satisfaction"]["unsatisfied"].extend(ready_chapters)
+            
+            # Sort ready chapters by priority (highest weightage first)
+            ready_chapters.sort(key=lambda ch: chapter_map[ch]["priority_score"], reverse=True)
+            
+            # Add the highest priority chapter
+            next_chapter = ready_chapters[0]
+            resolved_order.append(next_chapter)
+            remaining_chapters.remove(next_chapter)
+        
+        return {
+            "status": "success",
+            "resolved_order": resolved_order,
+            "dependency_report": dependency_report,
+            "chapter_analysis": chapter_map
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "resolved_order": list(chapter_map.keys()) if 'chapter_map' in locals() else [],
+            "dependency_report": {"error": str(e)}
         }

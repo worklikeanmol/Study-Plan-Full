@@ -80,8 +80,8 @@ Now, tell me about your study preferences, weak areas, or any specific requireme
         ...state.formData,
         user_message: message.trim(),
         reset_chat: false,
-        // Ensure target_score is properly handled for Generic plans
-        target_score: state.formData.study_plan_type === 'Generic' ? state.formData.target_score : null
+        // Ensure target_score is properly handled for Generic, Score-Oriented, and New Score-Oriented plans
+        target_score: (state.formData.study_plan_type === 'Generic' || state.formData.study_plan_type === 'Score-Oriented' || state.formData.study_plan_type === 'new_score_oriented') ? state.formData.target_score : null
       }
 
       const response = await sendChatMessage(requestData)
@@ -96,8 +96,23 @@ Now, tell me about your study preferences, weak areas, or any specific requireme
 
       // Check if study plan was generated
       if (response.is_plan_generated && response.study_plan) {
-        dispatch({ type: 'SET_STUDY_PLAN', payload: response.study_plan })
-        toast.success('Study plan generated! Check the "View Plan" section.')
+        // Enhanced plan data handling for different plan types
+        const planData = {
+          ...response.study_plan,
+          plan_type: state.formData.study_plan_type,
+          target_score: state.formData.target_score,
+          exam_date: state.formData.exam_date,
+          user_id: state.formData.user_id
+        }
+        
+        dispatch({ type: 'SET_STUDY_PLAN', payload: planData })
+        
+        // Show appropriate success message based on plan type
+        const planTypeName = state.formData.study_plan_type === 'new_score_oriented' 
+          ? 'New Score-Oriented' 
+          : state.formData.study_plan_type
+        
+        toast.success(`${planTypeName} study plan generated! Check the "View Plan" section.`)
       }
 
     } catch (error) {

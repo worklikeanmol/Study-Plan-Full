@@ -65,7 +65,7 @@ def create_regen_agent(llm, tools: list, system_message: str):
     return prompt | llm
 
 # Import calculation functions from main graph
-from app.graph import _calculate_monthly_plan, _find_best_match, _generate_plan_metadata
+from app.core.graph import _calculate_monthly_plan, _find_best_match, _generate_plan_metadata
 
 # Regeneration Counsellor Agent
 regen_counsellor_agent = create_regen_agent(
@@ -514,7 +514,7 @@ def regen_flow_node(state: RegenerationState):
     logger.info("Regeneration flow node executing with regeneration context")
     
     # Create a temporary UserData object for the flow logic
-    from app.models import UserData
+    from app.core.models import UserData
     
     # Extract user data from regeneration context (this should come from the original request)
     # For now, using default values - in production, this should come from the regeneration state
@@ -550,7 +550,7 @@ def regen_flow_node(state: RegenerationState):
     # temp_user_data.target_score = original_target_score
     
     # Use the flow logic from main graph
-    from app.graph import flow_node, StudyPlanState
+    from app.core.graph import flow_node, StudyPlanState
     
     # Create a temporary state for flow processing
     temp_state = StudyPlanState(
@@ -596,7 +596,7 @@ def regen_topic_node(state: RegenerationState):
         return state
     
     # Create temporary user data for topic processing
-    from app.models import UserData
+    from app.core.models import UserData
     
     temp_user_data = UserData(
         user_id=state.user_id,
@@ -620,7 +620,7 @@ def regen_topic_node(state: RegenerationState):
         temp_user_data.syllabus = pending_syllabus
     
     # Use the topic logic from main graph
-    from app.graph import topic_node, StudyPlanState
+    from app.core.graph import topic_node, StudyPlanState
     
     # Create temporary state for topic processing
     temp_state = StudyPlanState(

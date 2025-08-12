@@ -10,11 +10,13 @@ Features:
 from langchain_core.tools import tool
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta, date
-from app.enhanced_new_score_oriented_tools import (
-    calculate_monthly_target_scores,
-    generate_extended_months_plan,
-    create_comprehensive_weekend_schedule
-)
+# Note: These functions were moved from enhanced_new_score_oriented_tools during cleanup
+# They should be implemented directly in this module or imported from appropriate location
+# from app.enhanced_new_score_oriented_tools import (
+#     calculate_monthly_target_scores,
+#     generate_extended_months_plan,
+#     create_comprehensive_weekend_schedule
+# )
 from app.core.tools import supabase
 from app.core.utils import get_logger
 import calendar

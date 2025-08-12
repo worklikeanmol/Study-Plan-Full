@@ -154,7 +154,7 @@ class RevisionFlowAgent:
         Generate chapter sequence using enhanced dependency resolution.
         This ensures dependent chapters always come first, regardless of priority.
         """
-        from app.new_score_oriented_tools import enhanced_dependency_resolution_tool
+        from app.new_score_oriented.tools import enhanced_dependency_resolution_tool
         
         logger.info(f"Generating perfect dependency sequence for {subject}")
         
@@ -553,6 +553,8 @@ class RevisionFlowAgent:
         3. Weekly topic breakdown
         4. Comprehensive weekend schedule
         """
+        enhanced_features = {}
+        
         try:
             from app.enhanced_new_score_oriented_tools import (
                 calculate_monthly_target_scores,
@@ -567,8 +569,6 @@ class RevisionFlowAgent:
         
         logger.info("Generating enhanced features for new_score_oriented plan")
         
-        enhanced_features = {}
-        
         try:
             # 1. Prepare monthly chapters data for calculations
             monthly_chapters = self._prepare_monthly_chapters_data(subject_plans, target_months)
@@ -576,32 +576,19 @@ class RevisionFlowAgent:
             logger.info(f"Sample month data structure: {monthly_chapters.get('month_1', {})}")
             
             # 2. Calculate monthly target scores
-            target_scores_result = calculate_monthly_target_scores.invoke({
-                "exam": user_data.target_exam,
-                "user_target_score": user_data.target_score,
-                "monthly_chapters": monthly_chapters
-            })
+            target_scores_result = calculate_monthly_target_scores(user_data.__dict__, subject_plans, target_months)
             enhanced_features["monthly_target_scores"] = target_scores_result
             
             # 3. Generate extended months plan (if applicable)
-            extended_plan_result = generate_extended_months_plan.invoke({
-                "total_months": user_data.number_of_months,
-                "syllabus_completion_months": target_months
-            })
+            extended_plan_result = generate_extended_months_plan(user_data.__dict__, subject_plans, target_months)
             enhanced_features["extended_months_plan"] = extended_plan_result
             
             # 4. Generate weekly topic breakdown
-            topic_breakdown_result = generate_weekly_topic_breakdown.invoke({
-                "exam": user_data.target_exam,
-                "monthly_chapters": monthly_chapters
-            })
+            topic_breakdown_result = generate_weekly_topic_breakdown(user_data.__dict__, subject_plans, target_months)
             enhanced_features["weekly_topic_breakdown"] = topic_breakdown_result
             
             # 5. Create comprehensive weekend schedule
-            weekend_schedule_result = create_comprehensive_weekend_schedule.invoke({
-                "total_months": user_data.number_of_months,
-                "syllabus_completion_months": target_months
-            })
+            weekend_schedule_result = create_comprehensive_weekend_schedule(user_data.__dict__, subject_plans, target_months)
             enhanced_features["weekend_schedule"] = weekend_schedule_result
             
             # 6. Generate overall strategy summary
