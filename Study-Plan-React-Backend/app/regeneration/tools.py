@@ -2,7 +2,7 @@ from langchain_core.tools import tool
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from app.utils import get_logger
+from app.core.utils import get_logger
 from typing import Dict, Any, Optional
 
 load_dotenv()
@@ -200,7 +200,7 @@ def analyze_topic_importance(exam: str, subject: str, topics: str) -> Dict[str, 
         analysis = {}
         for topic in topic_list:
             # Get topic priority from existing tools
-            from app.tools import get_topic_priority
+            from app.core.tools import get_topic_priority
             topic_data = get_topic_priority.invoke({
                 "exam": exam,
                 "subject": subject,

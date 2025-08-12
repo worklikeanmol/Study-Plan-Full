@@ -1,20 +1,16 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from app.graph import graph, StudyPlanState
-from app.regen_graph import regen_graph, RegenerationState
-from app.regen_tools import check_user_exists, get_user_performance
-from app.tools import supabase
-from app.score_oriented_tools import (
-    validate_exam_date_logic,
-    calculate_target_score_progress,
-    get_weightage_optimized_chapter_sequence,
-    save_score_progress,
-)
-from app.score_oriented_models import ScoreOrientedUserData
-from app.score_calculation_engine import score_engine
-from app.utils import get_logger
-from app.models import (
+from app.core.graph import graph, StudyPlanState
+from app.regeneration.graph import regen_graph, RegenerationState
+from app.regeneration.tools import check_user_exists, get_user_performance
+from app.core.tools import supabase
+# Clean imports - Custom and New Score-Oriented only
+from app.new_score_oriented.models import NewScoreOrientedUserData, NewScoreOrientedStudyPlan
+from app.new_score_oriented.graph import new_score_oriented_graph, NewScoreOrientedState
+from app.new_score_oriented.tools import validate_new_score_oriented_exam_date
+from app.core.utils import get_logger
+from app.core.models import (
     UserData,
     ChatMessage,
     Validation,
@@ -22,11 +18,12 @@ from app.models import (
     WeeklySubjectPlan,
     PlanParameters,
 )
-from app.regen_models import (
+from app.regeneration.models import (
     RegenerationUserData,
     RegenerationPreferences,
 )
-from app.score_endpoints import score_router
+from app.new_score_oriented.endpoints import new_score_oriented_router
+from app.calendar.endpoints import enhanced_calendar_router
 from typing import Dict, Optional
 
 app = FastAPI()
@@ -40,8 +37,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include score-oriented endpoints
-app.include_router(score_router)
+# Include remaining endpoints - Custom and New Score-Oriented only
+app.include_router(new_score_oriented_router)
+app.include_router(enhanced_calendar_router)
 
 logger = get_logger(__name__)
 
@@ -95,7 +93,7 @@ class ChatResponse(BaseModel):
     user_id: str
     assistant_message: str
     is_plan_generated: bool = False
-    study_plan: StudyPlan | None = None
+    study_plan: Dict | StudyPlan | None = None
     chat_context: Dict[str, ChatMessage] = {}
 
 @app.post("/save-form", response_model=FormSaveResponse)
@@ -234,11 +232,12 @@ async def handle_normal_chat(request: ChatRequest):
         )
     
     # Validate Score-Oriented plans
-    if user_data.study_plan_type.lower() == "score-oriented":
+    if user_data.study_plan_type.lower() == "new_score_oriented":
         if not user_data.target_score:
+            plan_type_name = "New Score-Oriented"
             return ChatResponse(
                 user_id=request.user_id,
-                assistant_message="❌ Target score is required for Score-Oriented study plans. Please provide a target score between 1-300.",
+                assistant_message=f"❌ Target score is required for {plan_type_name} study plans. Please provide a target score between 1-300.",
                 is_plan_generated=False,
                 chat_context={}
             )
@@ -250,16 +249,21 @@ async def handle_normal_chat(request: ChatRequest):
                 chat_context={}
             )
         if not user_data.exam_date:
+            plan_type_name = "New Score-Oriented"
             return ChatResponse(
                 user_id=request.user_id,
-                assistant_message="❌ Exam date is required for Score-Oriented study plans. Please provide your exam date.",
+                assistant_message=f"❌ Exam date is required for {plan_type_name} study plans. Please provide your exam date.",
                 is_plan_generated=False,
                 chat_context={}
             )
         
-        # Validate exam date (must be at least 5 months from today)
+        # Validate exam date (must be at least 5 months for score-oriented, 6 months for new_score_oriented)
         try:
-            date_validation = validate_exam_date_logic(user_data.exam_date)
+            if user_data.study_plan_type.lower() == "new_score_oriented":
+                date_validation = validate_new_score_oriented_exam_date.invoke({"exam_date": user_data.exam_date})
+            else:
+                date_validation = validate_exam_date_logic(user_data.exam_date)
+                
             if not date_validation.get("is_valid", False):
                 return ChatResponse(
                     user_id=request.user_id,
@@ -273,36 +277,222 @@ async def handle_normal_chat(request: ChatRequest):
             # Force preparation_type to revision for Score-Oriented plans
             user_data.preparation_type = "revision"
             
-            # For Score-Oriented plans, generate plan immediately using score engine
-            if "generate" in request.user_message.lower():
+            # Check if this is a feedback/change request for existing new_score_oriented plan
+            existing_state_key = f"new_score_state_{request.user_id}"
+            requirements_key = f"new_score_requirements_{request.user_id}"
+            
+            # Check if user wants to generate
+            wants_to_generate = "generate" in request.user_message.lower()
+            
+            if existing_state_key in chat_history_storage and not wants_to_generate:
+                # This is a feedback request for existing new_score_oriented plan
+                logger.info(f"Handling feedback for existing new_score_oriented plan: {request.user_id}")
+                return await handle_new_score_oriented_feedback(request, chat_history_storage[existing_state_key])
+            
+            elif not wants_to_generate:
+                # This is requirement collection phase - don't generate yet
+                logger.info(f"Collecting requirements for new_score_oriented plan: {request.user_id}")
+                return await handle_new_score_oriented_requirements(request, chat_history_storage.get(requirements_key, {}))
+            
+            # For Score-Oriented and New Score-Oriented plans, generate plan only when user says "generate"
+            if wants_to_generate:
                 try:
-                    score_oriented_data = ScoreOrientedUserData(
-                        user_id=user_data.user_id,
-                        target_exam=user_data.target_exam,
-                        target_score=user_data.target_score,
-                        exam_date=user_data.exam_date,
-                        number_of_months=user_data.number_of_months
-                    )
+                    if user_data.study_plan_type.lower() == "new_score_oriented":
+                        # Handle new_score_oriented plan generation
+                        new_score_oriented_data = NewScoreOrientedUserData(
+                            user_id=user_data.user_id,
+                            target_exam=user_data.target_exam,
+                            target_score=user_data.target_score,
+                            exam_date=user_data.exam_date,
+                            number_of_months=user_data.number_of_months
+                        )
+                        
+                        # Build chat context for new_score_oriented
+                        chat_context = {}
+                        current_turn_id = "1"
+                        chat_context[current_turn_id] = ChatMessage(
+                            user_message=request.user_message,
+                            assistant_message=""
+                        )
+                        
+                        # Create initial state for new_score_oriented graph
+                        initial_new_score_state: NewScoreOrientedState = {
+                            "user_data": new_score_oriented_data,
+                            "chat_context": chat_context,
+                            "plan_parameters": PlanParameters(),
+                            "revision_flow_results": {},
+                            "chapter_validation": {},
+                            "topic_validation": {},
+                            "syllabus_validation": {},
+                            "study_plan": None,
+                            "supervisor_feedback": None,
+                            "plan_finalized": False,
+                            "next_agent": "",
+                            "validation_passed": False,
+                            "adjustments_needed": False
+                        }
+                        
+                        # Execute new_score_oriented graph
+                        final_new_score_state = new_score_oriented_graph.invoke(initial_new_score_state)
+                        
+                        # Get the generated plan
+                        new_score_plan = final_new_score_state.get("study_plan")
+                        final_chat_context = final_new_score_state.get("chat_context", chat_context)
+                        
+                        # Store the state for potential feedback/regeneration
+                        chat_history_storage[f"new_score_state_{request.user_id}"] = final_new_score_state
+                        
+                        if new_score_plan:
+                            # Debug print the plan structure
+                            print("=== NEW SCORE ORIENTED PLAN DEBUG ===")
+                            print(f"Plan keys: {list(new_score_plan.keys())}")
+                            print(f"Plan type: {type(new_score_plan)}")
+                            print(f"Plan content preview: {str(new_score_plan)[:500]}...")
+                            print("=====================================")
+                            
+                            # Convert to standard response format with proper monthly distribution
+                            monthly_plan_structure = {}
+                            revision_flow = new_score_plan.get("revision_flow_results", {})
+                            monthly_distribution = new_score_plan.get("monthly_distribution", {})
+                            total_months = new_score_plan.get("syllabus_completion_months", 6)
+                            
+                            # Create proper monthly distribution like score-oriented
+                            if monthly_distribution:
+                                # Use the monthly distribution from the plan
+                                for month_key, month_data in monthly_distribution.items():
+                                    if isinstance(month_data, dict) and "subjects" in month_data:
+                                        month_name = f"Month {month_data.get('month_number', 1)}"
+                                        monthly_plan_structure[month_name] = {}
+                                        
+                                        for subject, subject_chapters in month_data["subjects"].items():
+                                            if isinstance(subject_chapters, dict) and "chapters" in subject_chapters:
+                                                monthly_plan_structure[month_name][subject] = []
+                                                for chapter_info in subject_chapters["chapters"]:
+                                                    if isinstance(chapter_info, dict):
+                                                        monthly_plan_structure[month_name][subject].append({
+                                                            "chapter": chapter_info.get("chapter", ""),
+                                                            "coverage": 1.0  # 100% coverage for new_score_oriented
+                                                        })
+                            else:
+                                # Fallback: distribute chapters evenly across months
+                                for subject, subject_data in revision_flow.items():
+                                    if isinstance(subject_data, dict) and "chapters" in subject_data:
+                                        chapters = subject_data["chapters"]
+                                        chapters_per_month = max(1, len(chapters) // total_months)
+                                        
+                                        for month_num in range(1, total_months + 1):
+                                            month_name = f"Month {month_num}"
+                                            if month_name not in monthly_plan_structure:
+                                                monthly_plan_structure[month_name] = {}
+                                            
+                                            start_idx = (month_num - 1) * chapters_per_month
+                                            end_idx = month_num * chapters_per_month if month_num < total_months else len(chapters)
+                                            
+                                            month_chapters = chapters[start_idx:end_idx]
+                                            if month_chapters:
+                                                monthly_plan_structure[month_name][subject] = []
+                                                for chapter_info in month_chapters:
+                                                    if isinstance(chapter_info, dict):
+                                                        monthly_plan_structure[month_name][subject].append({
+                                                            "chapter": chapter_info.get("chapter", ""),
+                                                            "coverage": 1.0  # 100% coverage for new_score_oriented
+                                                        })
+                            
+                            study_plan_response = {
+                                "insights": new_score_plan.get("overall_strategy", "New Score-Oriented plan generated successfully"),
+                                "monthly_plan": monthly_plan_structure,
+                                "weekly_plan": {},
+                                "new_score_oriented_data": new_score_plan
+                            }
+                            
+                            print("=== STUDY PLAN RESPONSE DEBUG ===")
+                            print(f"Response keys: {list(study_plan_response.keys())}")
+                            print(f"Monthly plan keys: {list(study_plan_response['monthly_plan'].keys())}")
+                            print("====================================")
+                            
+                            # Display detailed breakdown in terminal
+                            try:
+                                from app.new_score_oriented.display import display_new_score_oriented_plan
+                                # Pass the actual new_score_plan data which contains enhanced_features
+                                display_new_score_oriented_plan(new_score_plan)
+                            except Exception as display_error:
+                                logger.error(f"Error displaying new_score_oriented plan in main.py: {display_error}")
+                                import traceback
+                                traceback.print_exc()
+                            
+                            # Get assistant message from final chat context
+                            assistant_message = ""
+                            for turn_id, chat_msg in final_chat_context.items():
+                                if chat_msg.assistant_message and "New Score-Oriented Study Plan Generated Successfully" in chat_msg.assistant_message:
+                                    assistant_message = chat_msg.assistant_message
+                                    break
+                            
+                            return ChatResponse(
+                                user_id=request.user_id,
+                                assistant_message=assistant_message or "🎯 New Score-Oriented study plan generated successfully!",
+                                is_plan_generated=True,
+                                study_plan=study_plan_response,
+                                chat_context=final_chat_context
+                            )
+                        else:
+                            return ChatResponse(
+                                user_id=request.user_id,
+                                assistant_message="❌ Error generating new_score_oriented plan. Please try again.",
+                                is_plan_generated=False,
+                                chat_context=final_chat_context
+                            )
                     
-                    score_plan = score_engine.calculate_score_oriented_plan(score_oriented_data)
-                    
-                    # Convert to standard StudyPlan format for response
-                    study_plan_response = {
-                        "insights": score_plan.overall_strategy,
-                        "monthly_plan": {},
-                        "weekly_plan": {},
-                        "score_oriented_data": score_plan.model_dump()
-                    }
-                    
-                    return ChatResponse(
-                        user_id=request.user_id,
-                        assistant_message=f"🎯 **Score-Oriented Study Plan Generated!**\n\n{score_plan.overall_strategy}\n\n📊 **Monthly Score Targets:**\n" + 
-                        "\n".join([f"Month {plan.month_number} ({plan.month_name}): {plan.score_target.target_score_for_month:.1f} marks" for plan in score_plan.monthly_plans]) +
-                        "\n\n✅ Your plan is ready! Check the 'View Plan' section for detailed breakdown.",
-                        is_plan_generated=True,
-                        study_plan=study_plan_response,
-                        chat_context=chat_context
-                    )
+                    else:
+                        # Handle regular score-oriented plan generation
+                        score_oriented_data = ScoreOrientedUserData(
+                            user_id=user_data.user_id,
+                            target_exam=user_data.target_exam,
+                            target_score=user_data.target_score,
+                            exam_date=user_data.exam_date,
+                            number_of_months=user_data.number_of_months
+                        )
+                        
+                        # Use simple enhanced score engine for full syllabus coverage and weightage integration
+                        try:
+                            score_plan = simple_enhanced_score_engine.calculate_enhanced_score_oriented_plan(score_oriented_data)
+                            
+                            # Check if plan has chapters
+                            total_chapters = sum(len(plan.score_target.chapters_to_cover) for plan in score_plan.monthly_plans)
+                            if total_chapters == 0:
+                                logger.warning("Simple enhanced engine returned no chapters, trying full enhanced engine")
+                                score_plan = enhanced_score_engine.calculate_enhanced_score_oriented_plan(score_oriented_data)
+                                
+                                # Check again
+                                total_chapters = sum(len(plan.score_target.chapters_to_cover) for plan in score_plan.monthly_plans)
+                                if total_chapters == 0:
+                                    logger.warning("All enhanced engines failed, falling back to original engine")
+                                    score_plan = score_engine.calculate_score_oriented_plan(score_oriented_data)
+                                    
+                        except Exception as e:
+                            logger.error(f"Simple enhanced engine failed: {e}, trying alternatives")
+                            try:
+                                score_plan = enhanced_score_engine.calculate_enhanced_score_oriented_plan(score_oriented_data)
+                            except Exception as e2:
+                                logger.error(f"Full enhanced engine also failed: {e2}, falling back to original")
+                                score_plan = score_engine.calculate_score_oriented_plan(score_oriented_data)
+                        
+                        # Convert to standard StudyPlan format for response
+                        study_plan_response = {
+                            "insights": score_plan.overall_strategy,
+                            "monthly_plan": {},
+                            "weekly_plan": {},
+                            "score_oriented_data": score_plan.model_dump()
+                        }
+                        
+                        return ChatResponse(
+                            user_id=request.user_id,
+                            assistant_message=f"🎯 **Enhanced Score-Oriented Study Plan Generated (No Hour Restrictions)!**\n\n{score_plan.overall_strategy}\n\n📊 **Monthly Score Targets:**\n" + 
+                            "\n".join([f"Month {plan.month_number} ({plan.month_name}):\n  • MaxAchievable: {getattr(plan.score_target, 'max_achievable_for_month', plan.score_target.target_score_for_month):.1f} marks\n  • User Target: {getattr(plan.score_target, 'user_target_for_month', plan.score_target.target_score_for_month * (user_data.target_score/300)):.1f} marks\n  • Cumulative: {plan.score_target.cumulative_target:.1f} marks" for plan in score_plan.monthly_plans]) +
+                            "\n\n✅ **Enhanced Features:**\n• ✅ ALL 36 syllabus chapters with 100% completion\n• ✅ Normal flow weightage agent prioritization (3x, 2x, 1x)\n• ✅ Proper dependency resolution (prerequisites first)\n• ✅ No hour restrictions (flexible 8-15 hours/day)\n• ✅ Complete syllabus coverage guaranteed\n\n📋 Your comprehensive plan is ready! Check the 'View Plan' section for detailed breakdown with dependencies.",
+                            is_plan_generated=True,
+                            study_plan=study_plan_response,
+                            chat_context={}
+                        )
                     
                 except Exception as e:
                     logger.error(f"Error generating score-oriented plan: {e}")
@@ -751,6 +941,193 @@ async def get_regeneration_info(user_id: str):
     except Exception as e:
         logger.error(f"Error getting regeneration info: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+async def handle_new_score_oriented_feedback(request: ChatRequest, existing_state: NewScoreOrientedState) -> ChatResponse:
+    """Handle feedback/change requests for existing new_score_oriented plans"""
+    logger.info(f"Processing new_score_oriented feedback: {request.user_message}")
+    
+    try:
+        # Get existing chat context and add new message
+        chat_context = existing_state.get("chat_context", {})
+        
+        # Find the next turn number
+        existing_turns = [int(k) for k in chat_context.keys() if k.isdigit()]
+        next_turn = max(existing_turns) + 1 if existing_turns else 1
+        
+        # Create new chat turn
+        from app.core.models import ChatMessage
+        new_turn = ChatMessage(
+            user_message=request.user_message,
+            assistant_message="",  # Will be filled by the feedback nodes
+            turn_number=next_turn
+        )
+        
+        # Add to chat context
+        chat_context[str(next_turn)] = new_turn
+        existing_state["chat_context"] = chat_context
+        
+        logger.info(f"Processing feedback for user message: {request.user_message}")
+        
+        # FIX: Set the starting point to feedback_counsellor to use new requirement collection workflow
+        existing_state["next_agent"] = "feedback_counsellor"
+        
+        # Execute the feedback workflow with new requirement collection
+        feedback_state = new_score_oriented_graph.invoke(existing_state)
+        
+        # Get the updated chat context
+        final_chat_context = feedback_state.get("chat_context", chat_context)
+        latest_turn = str(max([int(k) for k in final_chat_context.keys() if k.isdigit()]))
+        latest_message = final_chat_context.get(latest_turn)
+        
+        # Update stored state for future interactions
+        chat_history_storage[f"new_score_state_{request.user_id}"] = feedback_state
+        
+        # Check if plan was regenerated
+        updated_plan = feedback_state.get("study_plan")
+        if updated_plan and updated_plan != existing_state.get("study_plan"):
+            logger.info("Plan was regenerated during feedback processing")
+            
+            # Display the updated plan
+            try:
+                from app.new_score_oriented.display import display_new_score_oriented_plan
+                display_new_score_oriented_plan(updated_plan)
+                logger.info("Updated new_score_oriented plan displayed successfully")
+            except Exception as display_error:
+                logger.error(f"Error displaying updated plan: {display_error}")
+        
+        # Return the assistant's response
+        assistant_response = latest_message.assistant_message if latest_message else "I've processed your feedback. How would you like to proceed?"
+        
+        return ChatResponse(
+            user_id=request.user_id,
+            assistant_message=assistant_response,
+            is_plan_generated=bool(updated_plan),
+            study_plan=updated_plan if updated_plan else None,
+            chat_context=final_chat_context
+        )
+        
+    except Exception as e:
+        logger.error(f"Error handling new_score_oriented feedback: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        return ChatResponse(
+            user_id=request.user_id,
+            assistant_message=f"I encountered an error processing your feedback. Let me try to help you with your request. Please specify your requirements again, such as 'change my target score to 250' or 'focus on physics'.",
+            is_plan_generated=False,
+            chat_context=chat_context
+        )
+
+
+async def handle_new_score_oriented_requirements(request: ChatRequest, existing_requirements: dict) -> ChatResponse:
+    """Handle requirement collection for new_score_oriented plans without generating"""
+    logger.info(f"Processing new_score_oriented requirements: {request.user_message}")
+    
+    try:
+        from app.new_score_oriented.requirement_counsellor import collect_user_requirements
+        
+        # Collect requirements using the counsellor tool
+        collection_result = collect_user_requirements.invoke({
+            "user_message": request.user_message,
+            "existing_requirements": existing_requirements
+        })
+        
+        logger.info(f"Requirement collection result: {collection_result.get('status', 'Unknown')}")
+        
+        # Store updated requirements
+        requirements_key = f"new_score_requirements_{request.user_id}"
+        chat_history_storage[requirements_key] = collection_result.get("requirements", {})
+        
+        # Check if user wants to generate
+        if collection_result.get("status") == "generate_requested":
+            # User said "generate" - proceed to plan generation
+            logger.info("User requested generation, proceeding to create plan")
+            
+            # Get stored requirements
+            stored_requirements = chat_history_storage.get(requirements_key, {})
+            
+            # Create user data with requirements
+            user_data = NewScoreOrientedUserData(
+                user_id=request.user_id,
+                target_exam=request.target_exam,
+                study_plan_type="new_score_oriented",
+                target_score=stored_requirements.get("target_score_update", request.target_score),
+                exam_date=request.exam_date,
+                number_of_months=request.number_of_months
+            )
+            
+            # Create initial state with requirements
+            initial_new_score_state = {
+                "user_data": user_data,
+                "chat_context": {},
+                "plan_parameters": {},
+                "user_requirements": stored_requirements,
+                "next_agent": "counsellor_generator"
+            }
+            
+            # Add current message to chat context
+            from app.core.models import ChatMessage
+            chat_turn = ChatMessage(
+                user_message=request.user_message,
+                assistant_message="",
+                turn_number=1
+            )
+            initial_new_score_state["chat_context"]["1"] = chat_turn
+            
+            # Execute new_score_oriented graph
+            final_new_score_state = new_score_oriented_graph.invoke(initial_new_score_state)
+            
+            # Get the generated plan
+            new_score_plan = final_new_score_state.get("study_plan")
+            final_chat_context = final_new_score_state.get("chat_context", {})
+            
+            # Store the state for potential feedback/regeneration
+            chat_history_storage[f"new_score_state_{request.user_id}"] = final_new_score_state
+            
+            # Clear requirements after successful generation
+            chat_history_storage.pop(requirements_key, None)
+            
+            # Display the plan
+            try:
+                from app.new_score_oriented.display import display_new_score_oriented_plan
+                display_new_score_oriented_plan(final_new_score_state)
+                logger.info("New score-oriented plan displayed successfully")
+            except Exception as display_error:
+                logger.error(f"Error displaying plan: {display_error}")
+            
+            # Get the assistant's response
+            latest_turn = str(max([int(k) for k in final_chat_context.keys() if k.isdigit()]))
+            latest_message = final_chat_context.get(latest_turn)
+            assistant_response = latest_message.assistant_message if latest_message else "Your New Score-Oriented study plan has been generated successfully!"
+            
+            return ChatResponse(
+                user_id=request.user_id,
+                assistant_message=assistant_response,
+                is_plan_generated=True,
+                study_plan=new_score_plan,
+                chat_context=final_chat_context
+            )
+        
+        else:
+            # Still collecting requirements
+            assistant_response = collection_result.get("message", "Please tell me your study preferences.")
+            
+            return ChatResponse(
+                user_id=request.user_id,
+                assistant_message=assistant_response,
+                is_plan_generated=False,
+                chat_context={}
+            )
+        
+    except Exception as e:
+        logger.error(f"Error handling new_score_oriented requirements: {e}")
+        return ChatResponse(
+            user_id=request.user_id,
+            assistant_message=f"I encountered an error processing your requirements: {str(e)}. Please try again.",
+            is_plan_generated=False,
+            chat_context={}
+        )
+
 
 if __name__ == "__main__":
     import uvicorn

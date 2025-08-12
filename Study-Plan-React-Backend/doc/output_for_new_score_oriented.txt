@@ -1,0 +1,750 @@
+{
+  "plan_info": {
+    "start_date": "2025-08-11" (date of creation detect by system),
+    "end_date": "2026-04-08" (exam date),
+    "target_score": "240/300" (user_input),
+    "total_months": 8 (calculate from that day to exam_date),
+    "syllabus_completion_months": 6 (use a parameter and hardcoded value for now 6),
+    "study_days": 176 (week days for 6 months),
+    "pyq_days": 64 ([each saturday&Sunday it means per month 8 i.e 8*6=48] + [total_moths-syllabus_completion_months(which is 6 hardcoded for now)=2 i.e 2*8=16] so 48+16=64),
+    "weekend_sessions": 64 (pyq_days),
+    "dpp_sessions": 176*3 = 528 (each study_days/week days * 3 (as 3 subject each subject);
+    "Full_month_revision":2 (total_months - syllabus_compltion_months;; assigned the Pyqs and Dpps Subject chapter wise)
+  },
+
+"""Total_Acheivable score per month is define as total_average_weightage suming covering all chapters in a paticular month like Month1 covers 2 chapters from each subject [physics: 12.2,13.4] + [chemistry:2.2,3.4] + [mathematics: 5.0+2.0] = 38.2 for that particular month """
+
+"""User_Target_Score is [Total_Acheivable_score * (target_score // 300)] e.g. 38.2 * (240/300) = 30.56 ;;; All syllabus_completion_months user_target score should be equal or greater than the user target_score"""
+
+
+  "monthly_breakdown": {
+    "Month 1": {
+      "target_ratio": "80.0% of target",
+      "total_achievable_score": 80.75,
+      "user_target_score": 64.6,
+      "efficiency_required": "80.0%",
+      "subject_breakdown": { #Priority wise chapters
+        "physics": {
+          "chapters": [
+            "Chapter_9",
+            "Chapter_8"
+          ],
+          "subject_weightage": 27.51,
+          "chapter_count": 2,
+          "Dpp: Morning"
+        },
+        "chemistry": {
+          "chapters": [
+            "Chapter_8",
+            "Chapter_1"
+          ],
+          "subject_weightage": 26.46,
+          "chapter_count": 2,
+	  "Dpp: Evening",
+        },
+        "mathematics": {
+          "chapters": [
+            "Chapter_2",
+            "Chapter_1"
+          ],
+          "subject_weightage": 26.78,
+          "chapter_count": 2,
+	   "Dpp: Night",
+        }
+      }
+    },
+    "Month 2": {
+      "target_ratio": "80.0% of target",
+      "total_achievable_score": 51.24,
+      "user_target_score": 40.99,
+      "efficiency_required": "80.0%",
+      "subject_breakdown": {
+        "physics": {
+          "chapters": [
+            "Chapter_11",
+            "Chapter_4"
+          ],
+          "subject_weightage": 11.15,
+          "chapter_count": 2,
+	   "Dpp: Morning"
+        },
+        "chemistry": {
+          "chapters": [
+            "Chapter_4",
+            "Chapter_9"
+          ],
+          "subject_weightage": 17.91,
+          "chapter_count": 2,
+	  "Dpp: Evening",
+        },
+        "mathematics": {
+          "chapters": [
+            "Chapter_8",
+            "Chapter_6"
+          ],
+          "subject_weightage": 22.18,
+          "chapter_count": 2,
+	 "Dpp: Night",
+        }
+      }
+    },
+    "Month 3": {
+      "target_ratio": "80.0% of target",
+      "total_achievable_score": 30.37,
+      "user_target_score": 24.3,
+      "efficiency_required": "80.0%",
+      "subject_breakdown": {
+        "physics": {
+          "chapters": [
+            "Chapter_6",
+            "Chapter_1"
+          ],
+          "subject_weightage": 3.26,
+          "chapter_count": 2,
+           "Dpp: Morning",
+        },
+        "chemistry": {
+          "chapters": [
+            "Chapter_11",
+            "Chapter_6"
+          ],
+          "subject_weightage": 8.36,
+          "chapter_count": 2,
+          "Dpp: Evening",
+        },
+        "mathematics": {
+          "chapters": [
+            "Chapter_11",
+            "Chapter_4"
+          ],
+          "subject_weightage": 18.75,
+          "chapter_count": 2,
+	  "Dpp: Night",
+        }
+      }
+    },
+    "Month 4": {
+      "target_ratio": "80.0% of target",
+      "total_achievable_score": 39.63,
+      "user_target_score": 31.7,
+      "efficiency_required": "80.0%",
+      "subject_breakdown": {
+        "physics": {
+          "chapters": [
+            "Chapter_2",
+            "Chapter_12"
+          ],
+          "subject_weightage": 25.96,
+          "chapter_count": 2,
+	   "Dpp: Morning",
+        },
+        "chemistry": {
+          "chapters": [
+            "Chapter_2",
+            "Chapter_12"
+          ],
+          "subject_weightage": 3.63,
+          "chapter_count": 2,
+	"Dpp: Evening",
+        },
+        "mathematics": {
+          "chapters": [
+            "Chapter_9",
+            "Chapter_12"
+          ],
+          "subject_weightage": 10.04,
+          "chapter_count": 2,
+          "Dpp: Night",
+        }
+      }
+    },
+    "Month 5": {
+      "target_ratio": "80.0% of target",
+      "total_achievable_score": 36.66,
+      "user_target_score": 29.33,
+      "efficiency_required": "80.0%",
+      "subject_breakdown": {
+        "physics": {
+          "chapters": [
+            "Chapter_7",
+            "Chapter_3"
+          ],
+          "subject_weightage": 6.81,
+          "chapter_count": 2,
+          "Dpp: Morning"
+        },
+        "chemistry": {
+          "chapters": [
+            "Chapter_7",
+            "Chapter_3"
+          ],
+          "subject_weightage": 19.62,
+          "chapter_count": 2,
+           "Dpp: Afternoon",
+        },
+        "mathematics": {
+          "chapters": [
+            "Chapter_7",
+            "Chapter_3"
+          ],
+          "subject_weightage": 10.23,
+          "chapter_count": 2,
+          "Dpp: Night",
+        }
+      }
+    },
+    "Month 6": {
+      "target_ratio": "80.0% of target",
+      "total_achievable_score": 60.03,
+      "user_target_score": 48.02,
+      "efficiency_required": "80.0%",
+      "subject_breakdown": {
+        "physics": {
+          "chapters": [
+            "Chapter_10",
+            "Chapter_5"
+          ],
+          "subject_weightage": 25.3,
+          "chapter_count": 2,
+          "Dpp: Afternoon",
+        },
+        "chemistry": {
+          "chapters": [
+            "Chapter_10",
+            "Chapter_5"
+          ],
+          "subject_weightage": 24.0,
+          "chapter_count": 2,
+          "Dpp: Evening",
+        },
+        "mathematics": {
+          "chapters": [
+            "Chapter_10",
+            "Chapter_5"
+          ],
+          "subject_weightage": 10.73,
+          "chapter_count": 2,
+          "Dpp: Night",
+        }
+      }
+
+    },
+{
+"Month 7 ":{ "Total_PYQs_in_this_Month": 45; #adjust in weekly breakdown
+          }
+      },
+{
+"Month 8 ":{ "Total_PYQs_in_this_Month": 30; #as this is last month also suggest for quick recaps and cheatsheet
+          }
+      }
+
+
+    },
+
+
+
+
+
+  "chapter_breakdown": {
+    "month_1": {
+      "mathematics": [ #map chapter name from each month],
+      "physics": [...],
+      "chemistry": [..]
+    },
+    "month_2": {
+      "mathematics": [],
+      "physics": [],
+      "chemistry": []
+    },
+    "month_3": {
+      "mathematics": [],
+      "physics": [],
+      "chemistry": []
+    },
+    "month_4": {
+      "mathematics": [],
+      "physics": [],
+      "chemistry": []
+    },
+    "month_5": {
+      "mathematics": [],
+      "physics": [],
+      "chemistry": []
+    },
+    "month_6": {
+      "mathematics": [],
+      "physics": [],
+      "chemistry": []
+    }
+  },
+  "weekly_breakdown": {
+    "month_1": {
+      "week 1": { "total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [all topics name from that chapter],
+          "topic_count": "total topics"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 2": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 3": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 4": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      }
+    },
+    "month_2": {
+      "week 1": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 2": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 3": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 4": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      }
+    },
+    "month_3": {
+      "week 1": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 2": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 3": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 4": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      }
+    },
+    "month_4": {
+      "week 1": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 2": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 3": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 4": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      }
+    },
+    "month_5": {
+      "week 1": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 2": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 3": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 4": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      }
+    },
+    "month_6": {
+      "week 1": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 2": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 3": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      },
+      "week 4": {"total_pyq":2,"total_dpp":15(3 subjects * 5 week days=15), 
+       "subject_breakdown":{
+
+        "mathematics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "physics": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        },
+        "chemistry": {
+          "chapter": "chapter name map from months",
+          "topics": [],
+          "topic_count": "total number of topics from all chapters"
+        }
+      }
+    }
+  }
+}
+

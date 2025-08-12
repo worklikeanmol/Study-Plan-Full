@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Dict, Optional, Any
-from app.models import PlanParameters, StudyPlan, MonthlySubjectPlan, WeeklySubjectPlan, ChatMessage, Validation
+from app.core.models import PlanParameters, StudyPlan, MonthlySubjectPlan, WeeklySubjectPlan, ChatMessage, Validation
 
 # Regeneration-specific models
 class UserPerformanceData(BaseModel):

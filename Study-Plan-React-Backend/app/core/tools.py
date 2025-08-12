@@ -2,7 +2,7 @@ from langchain_core.tools import tool
 import os
 from supabase import create_client, Client
 from dotenv import load_dotenv
-from app.utils import get_logger
+from app.core.utils import get_logger
 
 load_dotenv()
 logger = get_logger(__name__)

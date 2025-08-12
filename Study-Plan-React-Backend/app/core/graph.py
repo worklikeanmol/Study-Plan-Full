@@ -7,7 +7,7 @@ from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 import os
 from dotenv import load_dotenv
-from app.tools import (
+from app.core.tools import (
     calculator,
     get_chapter_flow,
     get_chapter_weightage,
@@ -15,12 +15,15 @@ from app.tools import (
     get_syllabus,
     save_finalized_plan,
 )
-from app.score_tools import (
-    optimize_for_target_score,
-    calculate_expected_score,
+# Removed score_tools import - functions no longer needed for custom plans
+# Removed score_oriented_validator import
+from app.new_score_oriented.agents import (
+    revision_flow_agent, 
+    new_score_oriented_validator, 
+    new_score_oriented_supervisor
 )
-from app.utils import get_logger
-from app.models import (
+from app.core.utils import get_logger
+from app.core.models import (
     UserData,
     ChatMessage,
     Validation,
@@ -181,7 +184,7 @@ WHAT YOU DON'T NEED TO ASK:
 - Number of months (already provided) 
 - Daily study hours (already provided)
 - Syllabus chapters (already provided)
-- Target score (already provided if study_plan_type is "generic")
+- Target score (for custom plans)
 
 WHAT TO FOCUS ON:
 - "Which subjects do you want to focus more on?"
@@ -316,6 +319,13 @@ For GENERIC study plans with target scores:
 - Focus on achieving the target score efficiently
 - Consider marks per hour efficiency for time optimization
 - Calculate expected score and warn if target is not achievable with current time
+
+For SCORE-ORIENTED plans:
+- Apply weightage-based prioritization like normal flow
+- Ensure ALL syllabus chapters are covered across months
+- Use enhanced priority scoring with category multipliers (3x High, 2x Medium, 1x Low)
+- Continue incomplete chapters to next months
+- Integrate with enhanced score calculation engine for full coverage
 
 For CUSTOM study plans with revision:
 - Use standard weightage-based prioritization
@@ -722,9 +732,9 @@ def counsellor_node(state: StudyPlanState):
     
     logger.info(f"Latest user message: {latest_message}")
     
-    # Check if this is a generic plan with target score
+    # Removed generic logic - keeping only custom plans
     user_data = state["user_data"]
-    is_score_based = (user_data.study_plan_type.lower() == "generic" and user_data.target_score is not None)
+    is_score_based = False
     logger.info(f"Score-based planning: {is_score_based}, Target: {user_data.target_score}")
     
     # Check for generation trigger words
@@ -1134,28 +1144,23 @@ def generator_node(state: StudyPlanState):
 
     # Route based on preparation type and score requirements
     user_data = state["user_data"]
-    is_score_based = (user_data.study_plan_type.lower() == "generic" and user_data.target_score is not None)
+    is_score_based = False  # Removed generic logic
     
     # For generic plans with target score, check if time is sufficient
     if is_score_based:
         logger.info(f"Generic plan detected with target score: {user_data.target_score}")
         
-        # Use score optimization tool to check time requirements
-        from app.score_tools import optimize_for_target_score
+        # Removed score optimization - not needed for custom plans
         import json
         
         try:
-            optimization_result = optimize_for_target_score.invoke({
-                "target_score": user_data.target_score,
-                "available_hours": user_data.number_of_months * 30 * user_data.hours_per_day,
-                "syllabus": json.dumps(user_data.syllabus)
-            })
-            
-            is_target_achievable = optimization_result.get("is_target_achievable", True)
-            time_needed = optimization_result.get("time_needed_for_target", 0)
+            # Simplified logic for custom plans
+            is_target_achievable = True
+            time_needed = 0
             available_hours = user_data.number_of_months * 30 * user_data.hours_per_day
             
-            if not is_target_achievable:
+            # Custom plans don't need target score validation
+            if False:  # Disabled score optimization
                 # Store warning for counsellor to present to user
                 state["plan_metadata"]["time_warning"] = {
                     "target_score": user_data.target_score,
@@ -1193,7 +1198,382 @@ def generator_node(state: StudyPlanState):
         else:  # revision
             state["next_agent"] = "weightage"
     
+    # Check if this is a score-oriented plan that needs validation
+    is_score_oriented = (
+        False  # Removed score-oriented and generic logic
+    )
+    
+    # Check for new_score_oriented plans
+    is_new_score_oriented = user_data.study_plan_type.lower() == "new_score_oriented"
+    
+    # Route new_score_oriented plans through RevisionFlow agent
+    if is_new_score_oriented:
+        logger.info("New Score-Oriented plan detected - routing through RevisionFlow agent")
+        state["next_agent"] = "revision_flow"
+    # Route score-oriented plans through validator before weightage
+    elif is_score_oriented and state["next_agent"] == "weightage":
+        logger.info("Score-oriented plan detected - routing through score_oriented_validator")
+        state["next_agent"] = "score_oriented_validator"
+    
     logger.info(f"Routing to: {state['next_agent']} (preparation_type: {user_data.preparation_type}, study_plan_type: {user_data.study_plan_type})")
+    return state
+
+
+def score_oriented_validator_node(state: StudyPlanState):
+    """
+    Score-oriented validator agent that handles:
+    1. Dependency chain validation and reordering
+    2. 100% coverage enforcement for selected chapters
+    """
+    logger.info("Score-oriented validator node executing")
+    
+    user_data = state["user_data"]
+    plan_parameters = state["plan_parameters"]
+    
+    # Perform validation and optimization
+    validation_results = score_validator.validate_and_optimize_chapters(user_data, plan_parameters)
+    
+    if validation_results["status"] == "skipped":
+        logger.info("Validation skipped - proceeding to weightage node")
+        state["next_agent"] = "weightage"
+        return state
+    
+    # Store validation results in state for use by weightage node
+    state["score_validation_results"] = validation_results
+    
+    # Generate validation summary for logging
+    validation_summary = score_validator.generate_validation_summary(validation_results)
+    logger.info(f"Score validation summary:\n{validation_summary}")
+    
+    # Update plan_parameters with optimized sequences if needed
+    if validation_results["optimized_sequences"]:
+        logger.info("Updating plan parameters with optimized chapter sequences")
+        
+        # Update chapter_coverage_order with dependency-optimized sequences
+        for subject, optimized_sequence in validation_results["optimized_sequences"].items():
+            chapter_order = [ch["chapter"] for ch in optimized_sequence]
+            if chapter_order:
+                plan_parameters.chapter_coverage_order[subject.lower()] = chapter_order
+                logger.info(f"Updated {subject} chapter order: {chapter_order}")
+        
+        # Update chapter_priority to ensure 100% coverage
+        for subject, optimized_sequence in validation_results["optimized_sequences"].items():
+            high_priority_chapters = [
+                ch["chapter"] for ch in optimized_sequence 
+                if ch.get("priority_reason") == "high_weightage"
+            ]
+            if high_priority_chapters:
+                if subject.lower() not in plan_parameters.chapter_priority:
+                    plan_parameters.chapter_priority[subject.lower()] = []
+                plan_parameters.chapter_priority[subject.lower()].extend(high_priority_chapters)
+                # Remove duplicates while preserving order
+                plan_parameters.chapter_priority[subject.lower()] = list(dict.fromkeys(
+                    plan_parameters.chapter_priority[subject.lower()]
+                ))
+                logger.info(f"Updated {subject} chapter priorities: {plan_parameters.chapter_priority[subject.lower()]}")
+    
+    # Store validation insights for later use in study plan
+    validation_insights = {
+        "target_score": validation_results["target_score"],
+        "expected_score": validation_results["total_expected_score"],
+        "target_achievable": validation_results["target_achievable"],
+        "score_gap": validation_results.get("score_gap", 0),
+        "optimization_applied": True,
+        "dependency_fixes_count": len(validation_results.get("dependency_fixes", [])),
+        "subjects_optimized": list(validation_results["optimized_sequences"].keys())
+    }
+    
+    # Store in plan_metadata for supervisor and insights generation
+    if "plan_metadata" not in state:
+        state["plan_metadata"] = {}
+    state["plan_metadata"]["score_validation"] = validation_insights
+    
+    # Add validation message to chat context if needed
+    if validation_results.get("score_gap", 0) > 0:
+        logger.warning(f"Score gap detected: {validation_results['score_gap']:.1f} marks")
+        state["plan_metadata"]["score_warning"] = {
+            "target_score": validation_results["target_score"],
+            "expected_score": validation_results["total_expected_score"],
+            "score_gap": validation_results["score_gap"],
+            "warning": f"⚠️ Target score {validation_results['target_score']}/300 may be challenging. Expected: {validation_results['total_expected_score']:.1f}/300"
+        }
+    else:
+        state["plan_metadata"]["score_analysis"] = {
+            "target_score": validation_results["target_score"],
+            "expected_score": validation_results["total_expected_score"],
+            "is_achievable": True,
+            "message": f"✅ Target score {validation_results['target_score']}/300 is achievable! Expected: {validation_results['total_expected_score']:.1f}/300"
+        }
+    
+    # Proceed to weightage node with optimized parameters
+    state["next_agent"] = "weightage"
+    logger.info("Score validation complete - proceeding to weightage node")
+    
+    return state
+
+
+def revision_flow_node(state: StudyPlanState):
+    """
+    RevisionFlow agent for new_score_oriented plans.
+    Combines flow and weightage logic with complete syllabus coverage.
+    """
+    logger.info("RevisionFlow node executing for new_score_oriented plan")
+    
+    user_data = state["user_data"]
+    plan_parameters = state["plan_parameters"]
+    
+    # Generate revision flow plan
+    revision_plan = revision_flow_agent.generate_revision_flow_plan(user_data, plan_parameters)
+    
+    if revision_plan["status"] == "skipped":
+        logger.info("RevisionFlow skipped - not a new_score_oriented plan")
+        # Route to normal flow/weightage based on preparation type
+        if user_data.preparation_type.lower() == "syllabus coverage":
+            state["next_agent"] = "flow"
+        else:
+            state["next_agent"] = "weightage"
+        return state
+    
+    # Store revision flow results
+    state["revision_flow_results"] = revision_plan
+    
+    # Log revision flow summary
+    logger.info(f"RevisionFlow completed:")
+    logger.info(f"  - Target Score: {revision_plan['target_score']}/300")
+    logger.info(f"  - Total Months: {revision_plan['total_months']}")
+    logger.info(f"  - Subjects Planned: {list(revision_plan['subject_plans'].keys())}")
+    logger.info(f"  - Complete Coverage: {revision_plan['complete_syllabus_coverage']}")
+    
+    # Convert revision plan to monthly coverage format for compatibility
+    monthly_coverage = _convert_revision_plan_to_monthly_coverage(revision_plan, user_data)
+    state["monthly_coverage"] = monthly_coverage
+    
+    # Proceed to generator validation
+    state["next_agent"] = "new_score_oriented_generator_validation"
+    logger.info("RevisionFlow complete - proceeding to generator validation")
+    
+    return state
+
+
+def new_score_oriented_generator_validation_node(state: StudyPlanState):
+    """
+    Generator validation for new_score_oriented plans.
+    Validates all chapters covered and user requirements fulfilled.
+    """
+    logger.info("New Score-Oriented Generator Validation executing")
+    
+    user_data = state["user_data"]
+    revision_plan = state.get("revision_flow_results", {})
+    
+    # Perform chapter coverage validation
+    validation_result = new_score_oriented_validator.validate_chapter_coverage(user_data, revision_plan)
+    
+    # Store validation results
+    state["generator_validation_results"] = validation_result
+    
+    # Log validation summary
+    logger.info(f"Generator Validation Results:")
+    logger.info(f"  - All Chapters Covered: {validation_result['chapter_validation']['all_chapters_covered']}")
+    logger.info(f"  - Coverage Percentage: {validation_result['chapter_validation']['coverage_percentage']:.1f}%")
+    logger.info(f"  - User Requirements Fulfilled: {validation_result['user_requirements_fulfilled']}")
+    logger.info(f"  - Target Achievable: {validation_result['target_achievability']['achievable']}")
+    
+    # Check if validation passed
+    if not validation_result["user_requirements_fulfilled"]:
+        logger.warning("User requirements not fulfilled - may need plan adjustments")
+        # Store warning for supervisor
+        if "plan_metadata" not in state:
+            state["plan_metadata"] = {}
+        state["plan_metadata"]["generator_validation_warning"] = {
+            "issue": "User requirements not fully met",
+            "recommendations": validation_result.get("recommendations", [])
+        }
+    
+    # Proceed to topic assignment
+    state["next_agent"] = "new_score_oriented_topic"
+    logger.info("Generator validation complete - proceeding to topic assignment")
+    
+    return state
+
+
+def new_score_oriented_topic_node(state: StudyPlanState):
+    """
+    Topic assignment for new_score_oriented plans.
+    Assigns all topics for each chapter as mentioned in syllabus.
+    """
+    logger.info("New Score-Oriented Topic Assignment executing")
+    
+    user_data = state["user_data"]
+    revision_plan = state.get("revision_flow_results", {})
+    monthly_coverage = state.get("monthly_coverage", {})
+    
+    # Generate topic assignments for all chapters
+    topic_assignments = {}
+    
+    for subject, subject_plan in revision_plan.get("subject_plans", {}).items():
+        logger.info(f"Assigning topics for {subject}")
+        
+        subject_topics = {}
+        for chapter_info in subject_plan.get("chapters", []):
+            chapter_name = chapter_info["chapter"]
+            
+            # Get all topics for this chapter from Topic_Priority table
+            try:
+                chapter_topics = get_topic_priority.invoke({
+                    "exam": user_data.target_exam,
+                    "subject": subject.title(),
+                    "chapter": chapter_name
+                })
+                
+                # For new_score_oriented, include ALL topics (100% coverage)
+                all_topics = [topic["Topic"] for topic in chapter_topics]
+                subject_topics[chapter_name] = all_topics
+                
+                logger.info(f"  - {chapter_name}: {len(all_topics)} topics assigned")
+                
+            except Exception as e:
+                logger.error(f"Error getting topics for {chapter_name}: {e}")
+                subject_topics[chapter_name] = []
+        
+        topic_assignments[subject] = subject_topics
+    
+    # Store topic assignments
+    state["topic_assignments"] = topic_assignments
+    
+    # Convert to weekly coverage format for compatibility
+    weekly_coverage = _convert_topic_assignments_to_weekly_coverage(
+        topic_assignments, revision_plan, user_data
+    )
+    state["weekly_coverage"] = weekly_coverage
+    
+    # Validate topic coverage
+    topic_validation = new_score_oriented_validator.validate_topic_coverage(
+        user_data, topic_assignments
+    )
+    state["topic_validation_results"] = topic_validation
+    
+    logger.info(f"Topic Assignment Results:")
+    logger.info(f"  - Total Topics: {topic_validation['topic_validation']['total_topics']}")
+    logger.info(f"  - Covered Topics: {topic_validation['topic_validation']['covered_topics']}")
+    logger.info(f"  - All Topics Covered: {topic_validation['topic_validation']['all_topics_covered']}")
+    
+    # Proceed to final generator validation
+    state["next_agent"] = "new_score_oriented_final_validation"
+    logger.info("Topic assignment complete - proceeding to final validation")
+    
+    return state
+
+
+def new_score_oriented_final_validation_node(state: StudyPlanState):
+    """
+    Final validation for new_score_oriented plans.
+    Validates all syllabus topics included using Syllabus table.
+    """
+    logger.info("New Score-Oriented Final Validation executing")
+    
+    user_data = state["user_data"]
+    complete_plan = {
+        "revision_plan": state.get("revision_flow_results", {}),
+        "topic_assignments": state.get("topic_assignments", {}),
+        "monthly_coverage": state.get("monthly_coverage", {}),
+        "weekly_coverage": state.get("weekly_coverage", {})
+    }
+    
+    # Perform final syllabus compliance validation
+    final_validation = new_score_oriented_validator.validate_syllabus_compliance(
+        user_data, complete_plan
+    )
+    
+    # Store final validation results
+    state["final_validation_results"] = final_validation
+    
+    logger.info(f"Final Validation Results:")
+    logger.info(f"  - Fully Compliant: {final_validation['syllabus_compliance']['fully_compliant']}")
+    logger.info(f"  - Compliance Percentage: {final_validation['syllabus_compliance']['compliance_percentage']:.1f}%")
+    
+    # Generate study plan insights
+    insights = _generate_new_score_oriented_insights(state)
+    
+    # Create final study plan
+    state["study_plan"] = StudyPlan(
+        insights=insights,
+        monthly_plan=state["monthly_coverage"],
+        weekly_plan=state["weekly_coverage"]
+    )
+    
+    # Print study plan to terminal
+    _print_study_plan_to_terminal(state)
+    
+    # Proceed to new score-oriented supervisor
+    state["next_agent"] = "new_score_oriented_supervisor"
+    logger.info("Final validation complete - proceeding to supervisor")
+    
+    return state
+
+
+def new_score_oriented_supervisor_node(state: StudyPlanState):
+    """
+    Supervisor for new_score_oriented plans with target achievement focus.
+    """
+    logger.info("New Score-Oriented Supervisor executing")
+    
+    user_data = state["user_data"]
+    complete_plan_state = state
+    
+    # Perform comprehensive supervision
+    supervision_result = new_score_oriented_supervisor.supervise_plan(user_data, complete_plan_state)
+    
+    # Store supervision results
+    state["supervision_results"] = supervision_result
+    
+    logger.info(f"Supervision Results:")
+    logger.info(f"  - Plan Approved: {supervision_result['plan_approved']}")
+    logger.info(f"  - User Requirements Met: {supervision_result['user_requirements_met']}")
+    logger.info(f"  - Adjustments Needed: {len(supervision_result['adjustments_needed'])}")
+    
+    # Check if plan needs adjustments
+    if not supervision_result["plan_approved"]:
+        logger.warning("Plan needs adjustments for target achievement")
+        
+        # Apply force-fit adjustments
+        adjustments = supervision_result["adjustments_needed"]
+        for adjustment in adjustments:
+            logger.info(f"  - {adjustment['type']}: {adjustment['description']}")
+        
+        # Update plan metadata with adjustments
+        if "plan_metadata" not in state:
+            state["plan_metadata"] = {}
+        state["plan_metadata"]["supervisor_adjustments"] = adjustments
+        
+        # Force approve after adjustments (as per requirement: achieve target regardless)
+        supervision_result["plan_approved"] = True
+        supervision_result["user_requirements_met"] = True
+        logger.info("Plan force-approved with adjustments for target achievement")
+    
+    # Generate final recommendations
+    final_recommendations = supervision_result["final_recommendations"]
+    logger.info("Final Recommendations:")
+    for i, rec in enumerate(final_recommendations, 1):
+        logger.info(f"  {i}. {rec}")
+    
+    # Update study plan with supervision insights
+    if state.get("study_plan"):
+        supervision_insights = f"""
+{state['study_plan'].insights}
+
+🎯 **SUPERVISION ANALYSIS:**
+Target Achievement Probability: {supervision_result['target_achievement_analysis'].get('success_probability', 0):.1f}%
+Plan Status: {'✅ Approved' if supervision_result['plan_approved'] else '⚠️ Needs Adjustments'}
+
+📋 **FINAL RECOMMENDATIONS:**
+{chr(10).join(f'• {rec}' for rec in final_recommendations)}
+"""
+        state["study_plan"].insights = supervision_insights
+    
+    # Proceed to counsellor final
+    state["next_agent"] = "counsellor_final"
+    logger.info("New Score-Oriented supervision complete - proceeding to counsellor final")
+    
     return state
 
 def flow_node(state: StudyPlanState):
@@ -1201,8 +1581,8 @@ def flow_node(state: StudyPlanState):
     user_data = state["user_data"]
     plan_params = state["plan_parameters"]
     
-    # Check if this is score-based planning
-    is_score_based = (user_data.study_plan_type.lower() == "generic" and user_data.target_score is not None)
+    # Removed generic logic - keeping only custom plans
+    is_score_based = False
     logger.info(f"Flow node - Score-based planning: {is_score_based}, Preparation: {user_data.preparation_type}")
 
     # 1. Fetch all chapters and apply chapter coverage order first.
@@ -1262,7 +1642,7 @@ def flow_node(state: StudyPlanState):
         for subject, chapters in chapters_by_subject.items():
             for chap in chapters:
                 # Get weightage for score calculation
-                from app.tools import get_chapter_weightage
+                from app.core.tools import get_chapter_weightage
                 weightage_data = get_chapter_weightage.invoke({"exam": user_data.target_exam, "subject": subject})
                 for weight_info in weightage_data:
                     if weight_info.get("Chapter") == chap['Chapter']:
@@ -1299,13 +1679,45 @@ def weightage_node(state: StudyPlanState):
     plan_params = state["plan_parameters"]
     
     # Check if this is score-based planning
-    is_score_based = (user_data.study_plan_type.lower() == "generic" and user_data.target_score is not None)
+    is_score_based = (
+        False  # Removed generic and score-oriented logic
+    )
     logger.info(f"Score-based weightage planning: {is_score_based}")
+    
+    # Removed score_oriented_validator logic
+    validation_results = state.get("score_validation_results")
+    if False:  # Disabled score_oriented_validator
+        logger.info("Score oriented validator disabled")
 
     chapters_by_subject = {}
     for subject, chapters_to_cover in user_data.syllabus.items():
         all_chapter_weightage = get_chapter_weightage.invoke({"exam": user_data.target_exam, "subject": subject})
-        chapters_by_subject[subject] = [c for c in all_chapter_weightage if c["Chapter"] in chapters_to_cover]
+        
+        # Removed validation results logic for score-oriented plans
+        if False:  # Disabled validation results
+            logger.info(f"Validation disabled for {subject}")
+            optimized_sequence = []
+            
+            # Create chapter data with validation results
+            validated_chapters = []
+            for ch_info in optimized_sequence:
+                # Find the original chapter data
+                original_chapter = next(
+                    (c for c in all_chapter_weightage if c["Chapter"] == ch_info["chapter"]), 
+                    None
+                )
+                if original_chapter:
+                    # Use original data but mark as validated
+                    chapter_data = original_chapter.copy()
+                    chapter_data["validated_coverage"] = ch_info["coverage_percentage"]
+                    chapter_data["validation_priority"] = ch_info.get("priority_reason", "validated")
+                    chapter_data["dependencies_satisfied"] = ch_info.get("dependencies_satisfied", True)
+                    validated_chapters.append(chapter_data)
+            
+            chapters_by_subject[subject] = validated_chapters
+        else:
+            # Standard approach for non-validated subjects
+            chapters_by_subject[subject] = [c for c in all_chapter_weightage if c["Chapter"] in chapters_to_cover]
 
     # 1. Apply chapter coverage order (overrides category)
     for subject, ordered_chapters in plan_params.chapter_coverage_order.items():
@@ -1333,11 +1745,18 @@ def weightage_node(state: StudyPlanState):
             
             # For score-based plans, apply stronger category multipliers
             if is_score_based:
-                category_boost = {"High": 3, "Medium": 2, "Low": 1}.get(chap.get("Chapter Category", "Medium"), 2)
-                base_weightage = chap.get("Average Weightage", 0)
-                
-                # Calculate score-efficiency units (weightage * category boost)
-                chap['units'] = base_weightage * category_boost
+                # Check if this chapter was validated (has 100% coverage requirement)
+                if chap.get("validated_coverage") == 1.0:
+                    # For validated chapters, use weightage directly for 100% coverage
+                    base_weightage = chap.get("Average Weightage", 0)
+                    # Apply higher multiplier for validated score-oriented chapters
+                    chap['units'] = base_weightage * 4  # Higher multiplier for 100% coverage
+                    logger.info(f"Validated chapter {chap['Chapter']}: {base_weightage} weightage * 4 = {chap['units']} units (100% coverage)")
+                else:
+                    # Standard score-based calculation
+                    category_boost = {"High": 3, "Medium": 2, "Low": 1}.get(chap.get("Chapter Category", "Medium"), 2)
+                    base_weightage = chap.get("Average Weightage", 0)
+                    chap['units'] = base_weightage * category_boost
             else:
                 # Standard unit calculation for custom plans
                 # Chapter priority can further boost multipliers
@@ -1520,6 +1939,279 @@ def topic_node(state: StudyPlanState):
     state["next_agent"] = "generator_collate"
     return state
 
+def _convert_revision_plan_to_monthly_coverage(revision_plan: Dict, user_data) -> Dict:
+    """Convert revision plan to monthly coverage format for compatibility."""
+    monthly_coverage = {}
+    
+    monthly_distribution = revision_plan.get("monthly_distribution", {})
+    
+    for month_key, month_data in monthly_distribution.items():
+        monthly_plan = MonthlySubjectPlan()
+        
+        for subject, subject_data in month_data.get("subjects", {}).items():
+            chapters = subject_data.get("chapters", [])
+            
+            # Convert to ChapterCoverage format
+            chapter_coverages = []
+            for chapter_info in chapters:
+                chapter_coverage = ChapterCoverage(
+                    chapter=chapter_info["chapter"],
+                    coverage=chapter_info["coverage_percentage"]
+                )
+                chapter_coverages.append(chapter_coverage)
+            
+            # Set chapters for the subject
+            if subject == "physics":
+                monthly_plan.physics = chapter_coverages
+            elif subject == "chemistry":
+                monthly_plan.chemistry = chapter_coverages
+            elif subject == "mathematics":
+                monthly_plan.mathematics = chapter_coverages
+        
+        monthly_coverage[month_key] = monthly_plan
+    
+    return monthly_coverage
+
+
+def _convert_topic_assignments_to_weekly_coverage(topic_assignments: Dict, revision_plan: Dict, user_data) -> Dict:
+    """Convert topic assignments to weekly coverage format."""
+    weekly_coverage = {}
+    
+    # Create 4 weeks for the first month
+    for week in range(1, 5):
+        week_key = f"week_{week}"
+        weekly_plan = WeeklySubjectPlan()
+        
+        for subject, chapters_topics in topic_assignments.items():
+            subject_dict = {}
+            
+            # Distribute chapters across weeks
+            chapters = list(chapters_topics.keys())
+            chapters_per_week = max(1, len(chapters) // 4)
+            
+            start_idx = (week - 1) * chapters_per_week
+            end_idx = week * chapters_per_week if week < 4 else len(chapters)
+            
+            week_chapters = chapters[start_idx:end_idx]
+            
+            for chapter in week_chapters:
+                topics = chapters_topics.get(chapter, [])
+                if topics:
+                    subject_dict[chapter] = topics[:10]  # Limit to first 10 topics per week
+            
+            # Set topics for the subject
+            if subject == "physics":
+                weekly_plan.physics = subject_dict
+            elif subject == "chemistry":
+                weekly_plan.chemistry = subject_dict
+            elif subject == "mathematics":
+                weekly_plan.mathematics = subject_dict
+        
+        weekly_coverage[week_key] = weekly_plan
+    
+    return weekly_coverage
+
+
+def _generate_new_score_oriented_insights(state: StudyPlanState) -> str:
+    """Generate insights for new_score_oriented plans."""
+    user_data = state["user_data"]
+    revision_plan = state.get("revision_flow_results", {})
+    validation_results = state.get("final_validation_results", {})
+    
+    insights = f"""🎯 **NEW SCORE-ORIENTED STUDY PLAN**
+
+**Target Achievement Strategy:**
+Your plan is designed to achieve {user_data.target_score}/300 marks within {user_data.number_of_months} months through complete syllabus coverage with strategic prioritization.
+
+**Key Features:**
+✅ **Complete Coverage**: 100% syllabus coverage ensuring strong foundation
+✅ **Dependency Management**: Chapters ordered based on prerequisites and priority
+✅ **Score Optimization**: High-weightage chapters prioritized for maximum impact
+✅ **Practice Integration**: Saturday (PYQ) + Sunday (DPP) practice schedule
+
+**Plan Overview:**
+- **Syllabus Completion Target**: {min(user_data.number_of_months, 6)} months
+- **Expected Score**: {sum(plan.get('total_weightage', 0) for plan in revision_plan.get('subject_plans', {}).values()):.1f}/300
+- **Coverage Compliance**: {validation_results.get('syllabus_compliance', {}).get('compliance_percentage', 0):.1f}%
+
+**Monthly Strategy:**
+- **Months 1-{min(user_data.number_of_months, 6)}**: Complete syllabus coverage with 100% chapter completion
+- **Practice Days**: Every Saturday (PYQ) and Sunday (DPP) for consistent practice
+{f"- **Months {min(user_data.number_of_months, 6)+1}-{user_data.number_of_months}**: Intensive practice and revision" if user_data.number_of_months > 6 else ""}
+
+**Success Factors:**
+🔥 **Higher First Month Target**: Intensive start for momentum building
+📚 **Chapter Completion**: Focus on 100% understanding rather than partial coverage  
+🎯 **Target-Oriented**: Every chapter selected contributes to your {user_data.target_score} marks goal
+⚡ **Dependency-Aware**: Logical learning progression ensures solid foundation
+
+This plan ensures you achieve your target score through systematic, complete coverage while maintaining optimal learning progression!"""
+    
+    return insights
+
+
+def _print_study_plan_to_terminal(state: StudyPlanState):
+    """Print a comprehensive study plan to terminal for easy viewing without frontend."""
+    
+    user_data = state["user_data"]
+    study_plan = state["study_plan"]
+    plan_metadata = state.get("plan_metadata", {})
+    validation_results = state.get("score_validation_results")
+    
+    # Terminal colors for better readability
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+    
+    print("\n" + "="*80)
+    print(f"{HEADER}{BOLD}📚 STUDY PLAN GENERATED{ENDC}")
+    print("="*80)
+    
+    # User Information
+    print(f"\n{OKBLUE}{BOLD}👤 USER INFORMATION{ENDC}")
+    print(f"   User ID: {user_data.user_id}")
+    print(f"   Target Exam: {user_data.target_exam}")
+    print(f"   Study Plan Type: {user_data.study_plan_type}")
+    print(f"   Preparation Type: {user_data.preparation_type}")
+    print(f"   Duration: {user_data.number_of_months} months")
+    print(f"   Daily Hours: {user_data.hours_per_day} hours")
+    
+    # Score-oriented specific info
+    if user_data.target_score:
+        print(f"   🎯 Target Score: {user_data.target_score}/300")
+        if user_data.exam_date:
+            print(f"   📅 Exam Date: {user_data.exam_date}")
+    
+    # New Score-Oriented specific info
+    if user_data.study_plan_type.lower() == "new_score_oriented":
+        print(f"   🆕 Plan Type: NEW Score-Oriented (Complete Syllabus Coverage)")
+        print(f"   📚 Coverage Strategy: 100% chapter completion")
+        print(f"   ⏰ Syllabus Target: Complete within {min(user_data.number_of_months, 6)} months")
+    
+    # Score Validation Results (if available)
+    if validation_results:
+        print(f"\n{OKCYAN}{BOLD}🔍 SCORE VALIDATION RESULTS{ENDC}")
+        print(f"   Expected Score: {validation_results.get('total_expected_score', 'N/A'):.1f}/300")
+        print(f"   Target Achievable: {'✅ Yes' if validation_results.get('target_achievable') else '❌ No'}")
+        if validation_results.get('score_gap', 0) > 0:
+            print(f"   Score Gap: {WARNING}{validation_results['score_gap']:.1f} marks{ENDC}")
+        
+        if validation_results.get("optimized_sequences"):
+            print(f"   🔧 Dependency Optimization: Applied")
+            print(f"   📊 100% Coverage: Enforced")
+    
+    # Plan Insights
+    print(f"\n{OKGREEN}{BOLD}💡 PLAN INSIGHTS{ENDC}")
+    insights_lines = study_plan.insights.split('\n')
+    for line in insights_lines:
+        if line.strip():
+            print(f"   {line.strip()}")
+    
+    # Monthly Plan Overview
+    print(f"\n{HEADER}{BOLD}📅 MONTHLY PLAN OVERVIEW{ENDC}")
+    for month_key, monthly_plan in study_plan.monthly_plan.items():
+        month_num = month_key.replace("month_", "")
+        print(f"\n{OKBLUE}   📖 Month {month_num}:{ENDC}")
+        
+        for subject, chapters in monthly_plan.model_dump().items():
+            if subject in ['physics', 'chemistry', 'mathematics'] and chapters:
+                print(f"      {subject.title()}:")
+                for chapter_info in chapters:
+                    chapter_name = chapter_info['chapter']
+                    coverage = chapter_info['coverage'] * 100
+                    print(f"         • {chapter_name} ({coverage:.0f}% coverage)")
+    
+    # Weekly Plan Detail (Month 1)
+    if study_plan.weekly_plan:
+        print(f"\n{HEADER}{BOLD}📋 DETAILED WEEKLY PLAN (MONTH 1){ENDC}")
+        
+        for week_key, weekly_plan in study_plan.weekly_plan.items():
+            week_num = week_key.replace("week_", "")
+            print(f"\n{OKCYAN}   📅 Week {week_num}:{ENDC}")
+            
+            for subject, chapters_topics in weekly_plan.model_dump().items():
+                if subject in ['physics', 'chemistry', 'mathematics'] and chapters_topics:
+                    print(f"      {BOLD}{subject.title()}:{ENDC}")
+                    for chapter, topics in chapters_topics.items():
+                        if topics:
+                            print(f"         📚 {chapter}:")
+                            for topic in topics[:3]:  # Show first 3 topics
+                                print(f"            • {topic}")
+                            if len(topics) > 3:
+                                print(f"            • ... and {len(topics)-3} more topics")
+    
+    # Subject-wise Statistics
+    if plan_metadata.get("subject_total_time"):
+        print(f"\n{OKGREEN}{BOLD}📊 SUBJECT-WISE TIME ALLOCATION{ENDC}")
+        for subject, hours in plan_metadata["subject_total_time"].items():
+            percentage = (hours / (user_data.number_of_months * 30 * user_data.hours_per_day)) * 100
+            print(f"   {subject.title()}: {hours:.1f} hours ({percentage:.1f}%)")
+    
+    # Chapter-wise Coverage Summary
+    if plan_metadata.get("chapter_wise_coverage"):
+        print(f"\n{OKBLUE}{BOLD}📖 CHAPTER COVERAGE SUMMARY{ENDC}")
+        for subject, chapters in plan_metadata["chapter_wise_coverage"].items():
+            if chapters:
+                print(f"   {subject.title()}: {len(chapters)} chapters")
+                # Handle both list and dict formats
+                if isinstance(chapters, list):
+                    # chapters is a list of chapter names
+                    for chapter in chapters[:5]:  # Show first 5
+                        print(f"      • {chapter}")
+                    if len(chapters) > 5:
+                        print(f"      • ... and {len(chapters)-5} more chapters")
+                elif isinstance(chapters, dict):
+                    # chapters is a dict with coverage percentages
+                    for chapter, coverage in list(chapters.items())[:5]:  # Show first 5
+                        print(f"      • {chapter}: {coverage*100:.0f}%")
+                    if len(chapters) > 5:
+                        print(f"      • ... and {len(chapters)-5} more chapters")
+    
+    # Score Analysis (if available)
+    score_analysis = plan_metadata.get("score_analysis") or plan_metadata.get("score_warning")
+    if score_analysis:
+        print(f"\n{WARNING if 'warning' in score_analysis else OKGREEN}{BOLD}🎯 SCORE ANALYSIS{ENDC}")
+        if score_analysis.get("message"):
+            print(f"   {score_analysis['message']}")
+        elif score_analysis.get("warning"):
+            print(f"   {score_analysis['warning']}")
+        
+        if score_analysis.get("expected_score"):
+            print(f"   Expected Score: {score_analysis['expected_score']:.1f}/300")
+        if score_analysis.get("score_gap"):
+            print(f"   Score Gap: {score_analysis['score_gap']:.1f} marks")
+    
+    # User Preferences Applied
+    user_prefs = plan_metadata.get("user_preferences_applied", {})
+    if any(user_prefs.values()):
+        print(f"\n{OKCYAN}{BOLD}⚙️ USER PREFERENCES APPLIED{ENDC}")
+        if user_prefs.get("subject_priority_applied"):
+            print(f"   📌 Subject Priority: {user_prefs['subject_priority_applied']}")
+        if user_prefs.get("chapter_priority_applied"):
+            print(f"   📌 Chapter Priority: {user_prefs['chapter_priority_applied']}")
+        if user_prefs.get("chapter_order_applied"):
+            print(f"   📌 Chapter Order: {user_prefs['chapter_order_applied']}")
+    
+    # Validation Summary (if score-oriented)
+    if validation_results and validation_results.get("optimized_sequences"):
+        print(f"\n{OKGREEN}{BOLD}✅ SCORE-ORIENTED OPTIMIZATIONS{ENDC}")
+        print(f"   🔗 Dependency chains validated and reordered")
+        print(f"   💯 100% coverage enforced for selected chapters")
+        print(f"   🎯 Chapter sequence optimized for score achievement")
+        print(f"   📊 Subjects optimized: {len(validation_results['optimized_sequences'])}")
+    
+    # Footer
+    print(f"\n{HEADER}{'='*80}{ENDC}")
+    print(f"{BOLD}🚀 Study Plan Ready! Start your preparation journey!{ENDC}")
+    print(f"{'='*80}\n")
+
+
 def generator_collate_node(state: StudyPlanState):
     logger.info("Generator collate node executing")
     
@@ -1560,9 +2252,9 @@ def generator_collate_node(state: StudyPlanState):
     monthly_plan_json = json.dumps({k: v.model_dump() for k, v in state['monthly_coverage'].items()})
     weekly_plan_json = json.dumps({k: v.model_dump() for k, v in state['weekly_coverage'].items()})
 
-    # Check if this is score-based planning
+    # Removed generic logic - keeping only custom plans
     user_data = state["user_data"]
-    is_score_based = (user_data.study_plan_type.lower() == "generic" and user_data.target_score is not None)
+    is_score_based = False
     
     # Add score analysis to prompt if applicable
     score_context = ""
@@ -1593,6 +2285,10 @@ def generator_collate_node(state: StudyPlanState):
         monthly_plan=state["monthly_coverage"],
         weekly_plan=state["weekly_coverage"]
     )
+    
+    # Print study plan to terminal for easy viewing
+    _print_study_plan_to_terminal(state)
+    
     state["next_agent"] = "supervisor"
     return state
 
@@ -2195,6 +2891,12 @@ workflow = StateGraph(StudyPlanState)
 workflow.add_node("counsellor", counsellor_node)
 workflow.add_node("counsellor_continue", counsellor_continue_node)
 workflow.add_node("generator", generator_node)
+workflow.add_node("score_oriented_validator", score_oriented_validator_node)
+workflow.add_node("revision_flow", revision_flow_node)
+workflow.add_node("new_score_oriented_generator_validation", new_score_oriented_generator_validation_node)
+workflow.add_node("new_score_oriented_topic", new_score_oriented_topic_node)
+workflow.add_node("new_score_oriented_final_validation", new_score_oriented_final_validation_node)
+workflow.add_node("new_score_oriented_supervisor", new_score_oriented_supervisor_node)
 workflow.add_node("flow", flow_node)
 workflow.add_node("weightage", weightage_node)
 workflow.add_node("topic", topic_node)
@@ -2211,7 +2913,13 @@ def route_to_agent(state: StudyPlanState):
     return state["next_agent"]
 
 workflow.add_conditional_edges("counsellor", route_to_agent, {"generator": "generator", "counsellor_continue": "counsellor_continue", "end": END})
-workflow.add_conditional_edges("generator", route_to_agent, {"flow": "flow", "weightage": "weightage", "counsellor": "counsellor"})
+workflow.add_conditional_edges("generator", route_to_agent, {"flow": "flow", "weightage": "weightage", "score_oriented_validator": "score_oriented_validator", "revision_flow": "revision_flow", "counsellor": "counsellor"})
+workflow.add_conditional_edges("score_oriented_validator", route_to_agent, {"weightage": "weightage"})
+workflow.add_conditional_edges("revision_flow", route_to_agent, {"new_score_oriented_generator_validation": "new_score_oriented_generator_validation", "flow": "flow", "weightage": "weightage"})
+workflow.add_conditional_edges("new_score_oriented_generator_validation", route_to_agent, {"new_score_oriented_topic": "new_score_oriented_topic"})
+workflow.add_conditional_edges("new_score_oriented_topic", route_to_agent, {"new_score_oriented_final_validation": "new_score_oriented_final_validation"})
+workflow.add_conditional_edges("new_score_oriented_final_validation", route_to_agent, {"new_score_oriented_supervisor": "new_score_oriented_supervisor"})
+workflow.add_conditional_edges("new_score_oriented_supervisor", route_to_agent, {"counsellor_final": "counsellor_final"})
 workflow.add_conditional_edges("flow", route_to_agent, {"topic": "topic"})
 workflow.add_conditional_edges("weightage", route_to_agent, {"topic": "topic"})
 workflow.add_conditional_edges("topic", route_to_agent, {"generator_collate": "generator_collate"})

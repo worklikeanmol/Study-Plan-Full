@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 import os
 from dotenv import load_dotenv
-from app.regen_tools import (
+from app.regeneration.tools import (
     check_user_exists,
     get_user_performance,
     analyze_topic_importance,
@@ -14,20 +14,16 @@ from app.regen_tools import (
     save_regenerated_plan,
     update_user_performance,
 )
-from app.score_tools import (
-    analyze_score_progress,
-    optimize_for_target_score,
-    calculate_expected_score,
-)
-from app.tools import (
+# Removed score_tools import - functions no longer needed for regeneration
+from app.core.tools import (
     calculator,
     get_chapter_flow,
     get_chapter_weightage,
     get_topic_priority,
     get_syllabus,
 )
-from app.utils import get_logger
-from app.regen_models import (
+from app.core.utils import get_logger
+from app.regeneration.models import (
     RegenerationState,
     RegenerationUserData,
     UserPerformanceData,
@@ -36,7 +32,7 @@ from app.regen_models import (
     RegenerationInsights,
     TopicImportanceAnalysis,
 )
-from app.models import (
+from app.core.models import (
     ChatMessage,
     Validation,
     StudyPlan,
@@ -74,7 +70,7 @@ from app.graph import _calculate_monthly_plan, _find_best_match, _generate_plan_
 # Regeneration Counsellor Agent
 regen_counsellor_agent = create_regen_agent(
     llm,
-    [check_user_exists, get_user_performance, analyze_topic_importance, generate_progress_insights, analyze_score_progress],
+    [check_user_exists, get_user_performance, analyze_topic_importance, generate_progress_insights],
     """You are a regeneration counsellor specializing in helping existing users who are returning after completing their first month of study. Your role is to analyze their progress and guide them through the regeneration process.
 
 CONTEXT: This user already has a previous study plan and performance data. You need to:
