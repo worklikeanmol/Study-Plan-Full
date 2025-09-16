@@ -13,14 +13,20 @@ const initialState = {
       physics: [],
       chemistry: []
     },
+    // Custom plan specific fields
     number_of_months: 3,
     hours_per_day: 6,
-    target_score: null
+    // ScoreGeneric plan specific fields
+    target_score: null,
+    exam_date: null
   },
   chatHistory: [],
   studyPlan: null,
   isFormValid: false,
-  isExistingUser: false
+  isExistingUser: false,
+  // Add validation state for different plan types
+  validationErrors: {},
+  isSubmitting: false
 }
 
 function studyPlanReducer(state, action) {
@@ -63,10 +69,27 @@ function studyPlanReducer(state, action) {
         ...state,
         isExistingUser: action.payload
       }
+    case 'SET_VALIDATION_ERRORS':
+      return {
+        ...state,
+        validationErrors: action.payload
+      }
+    case 'SET_SUBMITTING':
+      return {
+        ...state,
+        isSubmitting: action.payload
+      }
     case 'RESET_CHAT':
       return {
         ...state,
         chatHistory: []
+      }
+    case 'RESET_FORM':
+      return {
+        ...state,
+        formData: initialState.formData,
+        validationErrors: {},
+        isFormValid: false
       }
     default:
       return state
