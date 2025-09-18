@@ -28,7 +28,7 @@ A modern React frontend for the Study Plan Generator system, built with Vite and
 
 - Node.js 16+ 
 - npm or yarn
-- Study Plan Backend API running on `http://127.0.0.1:8000`
+- Study Plan Backend API deployed at `https://pkrqj46pfieplghllqkeyjiptm0rqdpv.lambda-url.ap-south-1.on.aws`
 
 ## Installation
 
@@ -120,7 +120,7 @@ src/
 - `npm run lint` - Run ESLint
 
 ### Environment Configuration
-The API base URL is configured in `src/services/api.js`. Update this if your backend runs on a different port or host.
+The API base URL is configured in `src/services/api.js` and points to the deployed AWS Lambda backend.
 
 ## Deployment
 

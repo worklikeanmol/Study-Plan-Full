@@ -401,7 +401,7 @@ export default function StudyPlanForm({ onComplete }) {
       
       // Check if it's a network error (backend not running)
       if (error.message.includes('Network error') || error.message.includes('ECONNREFUSED')) {
-        toast.error('Backend server is not running! Please start it first:\n1. Open terminal\n2. cd Study-Plan\n3. python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload')
+        toast.error('Backend server is not accessible! Please check your internet connection or contact support.')
       } else {
         toast.error('Failed to save form data. You can still proceed to chat, but your data may not be persisted.')
       }

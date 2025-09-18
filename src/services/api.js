@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = 'http://127.0.0.1:8000'
+const API_BASE_URL = 'https://pkrqj46pfieplghllqkeyjiptm0rqdpv.lambda-url.ap-south-1.on.aws'
 
 // Create axios instance with default config
 const api = axios.create({

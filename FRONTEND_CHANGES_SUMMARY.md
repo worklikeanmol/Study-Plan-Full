@@ -90,7 +90,7 @@
 1. **Start Backend Server**:
    ```bash
    cd Study-Plan
-   python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
+   # Backend is now deployed at AWS Lambda
    ```
 
 2. **Test Complete Workflow**:

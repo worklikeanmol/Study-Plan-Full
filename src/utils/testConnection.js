@@ -1,6 +1,6 @@
 // Test connection utility for debugging
 export const testBackendConnection = async () => {
-  const baseUrl = 'http://127.0.0.1:8000'
+  const baseUrl = 'https://pkrqj46pfieplghllqkeyjiptm0rqdpv.lambda-url.ap-south-1.on.aws'
   
   console.log('Testing backend connection...')
   
@@ -16,14 +16,14 @@ export const testBackendConnection = async () => {
     }
   } catch (error) {
     console.log('❌ Cannot connect to backend:', error.message)
-    console.log('Make sure the backend is running on http://127.0.0.1:8000')
+    console.log('Make sure the backend is accessible at https://pkrqj46pfieplghllqkeyjiptm0rqdpv.lambda-url.ap-south-1.on.aws')
     return false
   }
 }
 
 // Test with sample data
 export const testChatEndpoint = async () => {
-  const baseUrl = 'http://127.0.0.1:8000'
+  const baseUrl = 'https://pkrqj46pfieplghllqkeyjiptm0rqdpv.lambda-url.ap-south-1.on.aws'
   
   const testData = {
     user_id: 'test_user_frontend',

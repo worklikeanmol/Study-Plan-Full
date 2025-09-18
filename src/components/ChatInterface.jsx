@@ -186,9 +186,9 @@ Now, tell me about your study preferences, weak areas, or any specific requireme
             <h4 className="font-medium text-yellow-800 mb-2">To fix this:</h4>
             <ol className="text-sm text-yellow-700 space-y-1">
               <li>1. Open a terminal in the Study-Plan directory</li>
-              <li>2. Run: <code className="bg-yellow-100 px-1 rounded">python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload</code></li>
-              <li>3. Or use: <code className="bg-yellow-100 px-1 rounded">python tmp_rovodev_start_backend.py</code></li>
-              <li>4. Refresh this page once the server is running</li>
+              <li>2. Backend is deployed at: <code className="bg-green-100 px-1 rounded">AWS Lambda</code></li>
+              <li>3. Check your internet connection</li>
+              <li>4. Contact support if the issue persists</li>
             </ol>
           </div>
           <button
